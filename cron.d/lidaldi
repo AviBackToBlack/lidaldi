@@ -1,0 +1,1 @@
+02 11 * * * lidaldi /path/to/run_scrapers.sh >> /var/log/lidaldi/scrapy.log 2>&1
