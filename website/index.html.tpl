@@ -35,7 +35,7 @@
 			<div id="availability-filters"></div>
 			<div class="category-wrapper">
 				<select name="category" id="category">
-					<option value="">All</option>
+					<option value="">All categories</option>
 				</select>
 			</div>
 			<div class="price-range">

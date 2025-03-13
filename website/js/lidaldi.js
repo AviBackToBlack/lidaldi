@@ -560,7 +560,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const defaultOption = document.createElement("option");
     defaultOption.value = "";
-    defaultOption.textContent = "All";
+    defaultOption.textContent = "All categories";
     categorySelect.appendChild(defaultOption);
 
     Array.from(availableCategories)
