@@ -370,24 +370,24 @@ document.addEventListener("DOMContentLoaded", function () {
     if (window.innerWidth < 600) {
       return offersData.length;
     }
-  
+
     const headerHeight = document.querySelector('header').offsetHeight || 0;
     const filtersRowHeight = document.querySelector(".filters-row").offsetHeight || 0;
     const paginationHeight = document.getElementById("paginationContainer").offsetHeight || 0;
     const footerHeight = document.querySelector("footer").offsetHeight || 0;
-  
+
     const availableHeight = window.innerHeight - headerHeight - filtersRowHeight - paginationHeight - footerHeight;
-  
+
     const sampleCard = document.querySelector(".product-card");
     const cardHeight = sampleCard ? sampleCard.offsetHeight : 320;
-  
+
     const rows = Math.floor(availableHeight / cardHeight) || 1;
-  
+
     const grid = document.getElementById("productsGrid");
-    const gridWidth = grid ? grid.offsetWidth : window.innerWidth;
-    const sampleCardWidth = sampleCard ? sampleCard.offsetWidth : 250;
-    const cols = Math.floor(gridWidth / sampleCardWidth) || 1;
-  
+    const gridStyles = window.getComputedStyle(grid);
+    const templateColumns = gridStyles.getPropertyValue("grid-template-columns");
+    const cols = templateColumns.split(/\s+/).filter(Boolean).length;
+
     return rows * cols;
   }
 
