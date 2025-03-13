@@ -370,24 +370,24 @@ document.addEventListener("DOMContentLoaded", function () {
     if (window.innerWidth < 600) {
       return offersData.length;
     }
-
-    const viewportHeight = window.innerHeight;
-    const topSpace = 280;
-    const bottomSpace = 100;
-    const availableHeight = viewportHeight - topSpace - bottomSpace;
-    const cardHeight = 320;
-    let rows = Math.floor(availableHeight / cardHeight);
-    if (rows < 1) rows = 1;
-
+  
+    const headerHeight = document.querySelector('header').offsetHeight || 0;
+    const filtersRowHeight = document.querySelector(".filters-row").offsetHeight || 0;
+    const paginationHeight = document.getElementById("paginationContainer").offsetHeight || 0;
+    const footerHeight = document.querySelector("footer").offsetHeight || 0;
+  
+    const availableHeight = window.innerHeight - headerHeight - filtersRowHeight - paginationHeight - footerHeight;
+  
+    const sampleCard = document.querySelector(".product-card");
+    const cardHeight = sampleCard ? sampleCard.offsetHeight : 320;
+  
+    const rows = Math.floor(availableHeight / cardHeight) || 1;
+  
     const grid = document.getElementById("productsGrid");
-    let gridWidth = grid.clientWidth;
-    if (!gridWidth || gridWidth < 200) {
-      gridWidth = window.innerWidth - 40;
-    }
-    const colWidth = 250 + 16;
-    let cols = Math.floor(gridWidth / colWidth);
-    if (cols < 1) cols = 1;
-
+    const gridWidth = grid ? grid.offsetWidth : window.innerWidth;
+    const sampleCardWidth = sampleCard ? sampleCard.offsetWidth : 250;
+    const cols = Math.floor(gridWidth / sampleCardWidth) || 1;
+  
     return rows * cols;
   }
 
