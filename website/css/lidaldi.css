@@ -79,7 +79,7 @@ header {
 }
 
 .filters-row button {
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.9rem;
   border: 1px solid var(--brand-primary);
   background-color: var(--white);
   color: var(--brand-primary);
@@ -131,7 +131,7 @@ header {
   background: var(--white);
   border: 1px solid var(--brand-primary);
   border-radius: 999px;
-  padding: 0 1.5rem 0 0.75rem;
+  padding: 0 1.5rem 0 0.9rem;
   height: 2.25rem;
   font-size: 0.9rem;
   color: var(--brand-primary);
@@ -166,7 +166,7 @@ header {
   background: var(--white);
   border: 1px solid var(--brand-primary);
   border-radius: 999px;
-  padding: 0 1.5rem 0 0.75rem;
+  padding: 0 1.5rem 0 0.9rem;
   height: 2.25rem;
   font-size: 0.9rem;
   color: var(--brand-primary);
@@ -230,9 +230,9 @@ header {
   display: inline-block;
 }
 
-.search-box::placeholder {
-  padding-left: 10px;
-}
+.filters-row .search-container input {
+  padding-left: 0.9rem;
+} 
 
 .clear-search-btn {
   position: absolute;
