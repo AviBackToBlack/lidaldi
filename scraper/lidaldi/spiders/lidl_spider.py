@@ -58,7 +58,7 @@ class LidlSpider(scrapy.Spider):
                 yield response.follow(cleared_link, self.parse_product)
 
     def parse_product(self, response):
-        image_url = response.css("img.gallery-image__img[data-qa-label='gallery-image']::attr(src)").get(default="").strip()
+        image_url = response.css("img.media-carousel-item__item::attr(src)").get(default="").strip()
         if not image_url:
             image_url = self.no_image_url
         image_urls = [image_url] if image_url else []
@@ -69,9 +69,9 @@ class LidlSpider(scrapy.Spider):
             "url": response.url,
             "scraped_at": scraped_at_val,
             "category": response.xpath('//nav[@aria-labelledby="heading-breadcrumbs"]//li[last()]//span[@itemprop="name"]/text()').get(default="No category").strip(),
-            "title": response.css("h1.keyfacts__title::text").get(default="No title").strip(),
-            "description": "\n".join(response.css("div.keyfacts__description *::text").getall()).strip() or "No description",
-            "store_availability": response.css("span.label__text::text").get(default="Unknown").strip(),
+            "title": response.css("h1[data-qa-label='keyfacts-title']::text").get(default="No title").strip(),
+            "description": "\n".join(response.css("div.tab__content.tab__content--description *::text").getall()).strip() or "No description",
+            "store_availability": response.css("span.ods-badge__label::text").get(default="Unknown").strip(),
             "price": (
                 re.sub(r"[^\d.]", "", price) if (price := response.css("div.m-price__price::text").get()) else "N/A"
             ),
