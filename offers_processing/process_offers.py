@@ -46,6 +46,17 @@ def parse_store_availability(avail: str) -> str:
         date_str = f"{dd}-{mm}-{year}"
         parsed = datetime.strptime(date_str, "%d-%m-%Y")
         return parsed.strftime("%d-%m-%Y") if parsed.date() >= datetime.now().date() else "01-01-0000"
+    match_wdm = re.search(r'\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{1,2})\s+([A-Za-z]{3})', avail)
+    if match_wdm:
+        day = match_wdm.group(1)
+        month_abbr = match_wdm.group(2)
+        now = datetime.now()
+        year = now.year
+        try:
+            parsed = datetime.strptime(f"{day} {month_abbr} {year}", "%d %b %Y")
+        except ValueError:
+            return "01-01-0000"
+        return parsed.strftime("%d-%m-%Y") if parsed.date() >= now.date() else "01-01-0000"
     return "01-01-9999"
 
 def file_exists(path: str) -> bool:
