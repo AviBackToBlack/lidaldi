@@ -91,7 +91,7 @@ class AldiSpider(scrapy.Spider):
             "category" : response.xpath('//nav[@aria-label="Breadcrumb"]/a[last()]/text()').get(default="No category").strip(),
             "title": response.css("h1.product-details__title::text").get(default="No title").strip(),
             "description": "\n".join(response.css("div.product-details__information div.base-rich-text.p360-richtext *::text").getall()).strip() or "No description",
-            "store_availability": response.css("div.product-details__on-sale-date::text").get(default="Unknown").strip(),
+            "store_availability": response.css("div.injection-product-details-on-sale-date-display::text").get(default="Unknown").strip(),
             "price": (
                 re.sub(r"[^\d.]", "", price) if (price := response.css("span.base-price__regular span::text").get()) else "N/A"
             ),
