@@ -71,7 +71,7 @@ class LidlSpider(scrapy.Spider):
             "category": response.xpath('//nav[@aria-labelledby="heading-breadcrumbs"]//li[last()]//span[@itemprop="name"]/text()').get(default="No category").strip(),
             "title": response.css("h1[data-qa-label='keyfacts-title']::text").get(default="No title").strip(),
             "description": "\n".join(response.css("div.block.details__description *::text").getall()).strip() or "No description",
-            "store_availability": response.css("span.ods-badge__label::text").get(default="Unknown").strip(),
+            "store_availability": response.css("h3.availability.availability--blue::text").get(default="Unknown").strip(),
             "price": (
                 re.sub(r"[^\d.]", "", price) if (price := response.css("div.ods-price__value::text").get()) else "N/A"
             ),

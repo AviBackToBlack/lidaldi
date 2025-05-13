@@ -57,6 +57,8 @@ def parse_store_availability(avail: str) -> str:
         except ValueError:
             return "01-01-0000"
         return parsed.strftime("%d-%m-%Y") if parsed.date() >= now.date() else "01-01-0000"
+    if "in store" in low:
+        return "01-01-0000"
     return "01-01-9999"
 
 def file_exists(path: str) -> bool:
