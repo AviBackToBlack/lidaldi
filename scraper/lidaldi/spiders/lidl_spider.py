@@ -59,7 +59,7 @@ class LidlSpider(scrapy.Spider):
                 yield response.follow(cleared_link, self.parse_product)
 
     def parse_product(self, response):
-        description_soup = Null
+        description_soup = None
         ld_json_text = response.xpath("//script[@type='application/ld+json']/text()").get()
         if ld_json_text:
             try:
