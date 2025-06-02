@@ -67,7 +67,7 @@ class LidlSpider(scrapy.Spider):
                 if isinstance(ld_data, dict) and "description" in ld_data:
                     description_soup = BeautifulSoup(ld_data["description"], "html.parser")
                 else:
-                    self.logger.error("ld+json does not contain description.")
+                    self.logger.warning("ld+json does not contain description.")
             except Exception as e:
                 self.logger.error(f"Error parsing ld+json: {e}")
         else:
