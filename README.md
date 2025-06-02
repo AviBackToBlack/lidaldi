@@ -17,9 +17,10 @@ Thank you for your understanding.
 
 ## Requirements
 
+- **BeautifulSoup4:** ≥ 4.13.4  
+- **Pillow:** ≥ 11.1.0  
 - **Python:** ≥ 3.9  
-- **Pillow:** 11.1.0  
-- **Scrapy:** 2.12.0  
+- **Scrapy:** ≥ 2.12.0  
 
 ## Installation
 

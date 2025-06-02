@@ -3,6 +3,7 @@ import os
 import re
 import scrapy
 import time
+from bs4 import BeautifulSoup
 from scrapy import signals
 from urllib.parse import urlparse, urlunparse
 
@@ -58,6 +59,20 @@ class LidlSpider(scrapy.Spider):
                 yield response.follow(cleared_link, self.parse_product)
 
     def parse_product(self, response):
+        description_soup = Null
+        ld_json_text = response.xpath("//script[@type='application/ld+json']/text()").get()
+        if ld_json_text:
+            try:
+                ld_data = json.loads(ld_json_text)
+                if isinstance(ld_data, dict) and "description" in ld_data:
+                    description_soup = BeautifulSoup(ld_data["description"], "html.parser")
+                else:
+                    self.logger.error("ld+json does not contain description.")
+            except Exception as e:
+                self.logger.error(f"Error parsing ld+json: {e}")
+        else:
+            self.logger.error("No ld+json script found on the page.")
+
         image_url = response.css("img.media-carousel-item__item::attr(src)").get(default="").strip()
         if not image_url:
             image_url = self.no_image_url
@@ -70,7 +85,9 @@ class LidlSpider(scrapy.Spider):
             "scraped_at": scraped_at_val,
             "category": response.xpath('//nav[@aria-labelledby="heading-breadcrumbs"]//li[last()]//span[@itemprop="name"]/text()').get(default="No category").strip(),
             "title": response.css("h1[data-qa-label='keyfacts-title']::text").get(default="No title").strip(),
-            "description": "\n".join(response.css("div.block.details__description *::text").getall()).strip() or "No description",
+            "description": (
+                re.sub(r'\s*\n\s*', '\n', description_soup.get_text(separator="\n")).strip() if (description_soup) else "No description"
+            ),
             "store_availability": response.css("h3.availability.availability--blue::text").get(default="Unknown").strip(),
             "price": (
                 re.sub(r"[^\d.]", "", price) if (price := response.css("div.ods-price__value::text").get()) else "N/A"
