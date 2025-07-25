@@ -9,9 +9,9 @@ from urllib.parse import urlparse, urlunparse
 
 class AldiSpider(scrapy.Spider):
     name = "aldi"
-    allowed_domains = ["aldi.ie", "dm.emea.cms.aldi.cx"]
+    allowed_domains = ["aldi.ie", "api.aldi.ie", "dm.emea.cms.aldi.cx"]
     start_urls = ["https://www.aldi.ie/products/specialbuys"]
-    no_image_url = "";
+    no_image_url = ""
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
@@ -67,15 +67,42 @@ class AldiSpider(scrapy.Spider):
             self.logger.error("No 'Browse All' URL found.")
 
     def parse_products(self, response):
-        product_links = response.css("a.product-tile__link::attr(href)").getall()
-        for link in product_links:
-            cleared_link = self.remove_query(link)
-            self.logger.info(f"Following product: {cleared_link}")
-            yield response.follow(cleared_link, self.parse_product)
+        specialbuys_category_key = urlparse(response.url).path.rstrip("/").split("/")[-1]
+        limit, offset = 30, 0
+        api_url = f"https://api.aldi.ie/v3/product-search?currency=EUR&categoryKey={specialbuys_category_key}&limit={limit}&offset={offset}&getNotForSaleProducts=1&serviceType=walk-in"
+        yield response.follow(api_url, self.parse_products_api, meta={"specialbuys_category_key": specialbuys_category_key, "limit": limit, "offset": offset}, dont_filter=True)
 
-        next_page = response.css("a.base-pagination__arrow[data-test='next-page']::attr(href)").get()
-        if next_page:
-            yield response.follow(next_page, self.parse_products)
+    def parse_products_api(self, response):
+        specialbuys_category_key = response.meta["specialbuys_category_key"]
+        limit = response.meta["limit"]
+        offset = response.meta["offset"]
+
+        try:
+            payload = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decode failed on product-search: {e}")
+            return
+
+        products = payload.get("data", [])
+        total    = payload.get("meta", {}).get("pagination", {}).get("totalCount", 0)
+
+        if total == 0:
+            self.logger.error(f"Can not identify totalCount")
+            return
+
+        for item in products:
+            slug_text = item.get("urlSlugText", "").strip()
+            sku       = item.get("sku", "").strip()
+            if not (slug_text and sku):
+                self.logger.error(f"Missing slug/SKU in record: {item.get('name')}")
+                continue
+            product_url = f"https://www.aldi.ie/product/{slug_text}-{sku}"
+            yield response.follow(product_url, self.parse_product)
+
+        next_offset = offset + limit
+        if next_offset < total:
+            api_url = f"https://api.aldi.ie/v3/product-search?currency=EUR&categoryKey={specialbuys_category_key}&limit={limit}&offset={next_offset}&getNotForSaleProducts=1&serviceType=walk-in"
+            yield response.follow(api_url, self.parse_products_api, meta={"specialbuys_category_key": specialbuys_category_key, "limit": limit, "offset": offset + limit}, dont_filter=True)
 
     def parse_product(self, response):
         image_url = response.css("img.base-image[fetchpriority='high']::attr(src)").get(default="").strip()
@@ -91,7 +118,7 @@ class AldiSpider(scrapy.Spider):
             "category" : response.xpath('//nav[@aria-label="Breadcrumb"]/a[last()]/text()').get(default="No category").strip(),
             "title": response.css("h1.product-details__title::text").get(default="No title").strip(),
             "description": "\n".join(response.css("div.product-details__information div.base-rich-text.p360-richtext *::text").getall()).strip() or "No description",
-            "store_availability": response.css("div.injection-product-details-on-sale-date-display::text").get(default="Unknown").strip(),
+            "store_availability": response.css("div.product-details__text-badges .base-label--info::text").get(default="Unknown").strip(),
             "price": (
                 re.sub(r"[^\d.]", "", price) if (price := response.css("span.base-price__regular span::text").get()) else "N/A"
             ),

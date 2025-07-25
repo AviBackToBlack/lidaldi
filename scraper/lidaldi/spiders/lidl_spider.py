@@ -12,7 +12,7 @@ class LidlSpider(scrapy.Spider):
     name = "lidl"
     allowed_domains = ["lidl.ie", "imgproxy-retcat.assets.schwarz"]
     start_urls = ["https://www.lidl.ie/"]
-    no_image_url = "";
+    no_image_url = ""
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
