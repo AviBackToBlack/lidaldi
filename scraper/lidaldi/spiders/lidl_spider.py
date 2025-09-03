@@ -88,7 +88,7 @@ class LidlSpider(scrapy.Spider):
             "description": (
                 re.sub(r'\s*\n\s*', '\n', description_soup.get_text(separator="\n")).strip() if (description_soup) else "No description"
             ),
-            "store_availability": response.css("h3.availability.availability--blue::text").get(default="Unknown").strip(),
+            "store_availability": response.css("span.ods-badge__label::text").get(default="Unknown").strip(),
             "price": (
                 re.sub(r"[^\d.]", "", price) if (price := response.css("div.ods-price__value::text").get()) else "N/A"
             ),
