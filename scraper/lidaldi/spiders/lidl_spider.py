@@ -7,11 +7,12 @@ from bs4 import BeautifulSoup
 from scrapy import signals
 from urllib.parse import urlparse, urlunparse
 
-
 class LidlSpider(scrapy.Spider):
     name = "lidl"
-    allowed_domains = ["lidl.ie", "imgproxy-retcat.assets.schwarz"]
-    start_urls = ["https://www.lidl.ie/"]
+    allowed_domains = ["lidl.ie", "imgproxy-retcat.assets.schwarz", "lidaldi.neit.me"]
+    search_api_url = "https://www.lidl.ie/q/api/search?assortment=IE&locale=en_IE&version=2.1.0"
+    search_api_fetchsize = 108
+    start_urls = [search_api_url]
     no_image_url = ""
 
     @classmethod
@@ -44,28 +45,119 @@ class LidlSpider(scrapy.Spider):
                 self.logger.error(f"Error removing old offers file: {e}")
 
     def parse(self, response):
-        category_links = response.css("a.AHeroStageItems__Item--Wrapper::attr(href)").getall()
-        for link in category_links:
-            if "/c/" in link:
-                self.logger.info(f"Following category: {link}")
-                yield response.follow(link, self.parse_category)
+        try:
+            payload = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decode failed on search API: {e}")
+            return
 
-    def parse_category(self, response):
-        product_links = response.css("div.AProductGridbox__GridTilePlaceholder::attr(canonicalpath)").getall()
-        for link in product_links:
-            if "/p/" in link:
-                cleared_link = self.remove_query(response.urljoin(link))
-                self.logger.info(f"Following product: {cleared_link}")
-                yield response.follow(cleared_link, self.parse_product)
+        for facet in (payload.get("facets") or []):
+            if facet.get("code") != "category":
+                continue
+            all_values = (facet.get("topvalues") or []) + (facet.get("values") or [])
+            for value in all_values:
+                label = value.get("label") or ""
+                cat_id = value.get("value") or ""
+                if not label or not cat_id or label == "Food & Drink":
+                    continue
+                self.logger.info(f"Found non-food category: {label} (id={cat_id})")
+                api_url = (
+                    f"{self.search_api_url}"
+                    f"&fetchsize={self.search_api_fetchsize}&offset=0"
+                    f"&category.id={cat_id}"
+                )
+                yield response.follow(
+                    api_url, self.parse_category_api,
+                    meta={"category_label": label, "category_id": cat_id},
+                    dont_filter=True,
+                )
+            break
+
+    def parse_category_api(self, response):
+        category_label = response.meta["category_label"]
+        category_id = response.meta["category_id"]
+
+        try:
+            payload = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decode failed on category API: {e}")
+            return
+
+        items = payload.get("items") or []
+        num_found = payload.get("numFound") or 0
+        offset = payload.get("offset") or 0
+        fetchsize = payload.get("fetchsize") or self.search_api_fetchsize
+
+        self.logger.info(
+            f"Category '{category_label}': got {len(items)} items "
+            f"(offset={offset}, total={num_found})"
+        )
+
+        for item in items:
+            gridbox_data = (item.get("gridbox") or {}).get("data") or {}
+            if gridbox_data.get("category") == "Food":
+                continue
+
+            canonical_url = gridbox_data.get("canonicalUrl") or ""
+            if not canonical_url:
+                self.logger.warning(
+                    f"No canonicalUrl for item: {gridbox_data.get('fullTitle')}"
+                )
+                continue
+
+            product_url = f"https://www.lidl.ie{canonical_url}"
+            title = gridbox_data.get("fullTitle") or "No title"
+            price_data = gridbox_data.get("price") or {}
+            raw_price = price_data.get("price")
+            price = str(raw_price) if raw_price is not None else "N/A"
+            image_url = gridbox_data.get("image") or self.no_image_url
+            stock_avail = gridbox_data.get("stockAvailability") or {}
+            badge_info = stock_avail.get("badgeInfo") or {}
+            badges = badge_info.get("badges") or []
+            store_availability = (
+                (badges[0].get("text") or "Unknown") if badges else "Unknown"
+            )
+
+            yield response.follow(
+                product_url, self.parse_product,
+                meta={
+                    "product_url": product_url,
+                    "category": category_label,
+                    "title": title,
+                    "price": price,
+                    "image_url": image_url,
+                    "store_availability": store_availability,
+                },
+            )
+
+        next_offset = offset + fetchsize
+        if next_offset < num_found:
+            api_url = (
+                f"{self.search_api_url}"
+                f"&fetchsize={self.search_api_fetchsize}&offset={next_offset}"
+                f"&category.id={category_id}"
+            )
+            yield response.follow(
+                api_url, self.parse_category_api,
+                meta={"category_label": category_label, "category_id": category_id},
+                dont_filter=True,
+            )
 
     def parse_product(self, response):
-        description_soup = None
+        product_url = response.meta["product_url"]
+        description = "No description"
         ld_json_text = response.xpath("//script[@type='application/ld+json']/text()").get()
         if ld_json_text:
             try:
                 ld_data = json.loads(ld_json_text)
                 if isinstance(ld_data, dict) and "description" in ld_data:
-                    description_soup = BeautifulSoup(ld_data["description"], "html.parser")
+                    description_soup = BeautifulSoup(
+                        ld_data["description"], "html.parser"
+                    )
+                    description = re.sub(
+                        r'\s*\n\s*', '\n',
+                        description_soup.get_text(separator="\n"),
+                    ).strip()
                 else:
                     self.logger.warning("ld+json does not contain description.")
             except Exception as e:
@@ -73,25 +165,22 @@ class LidlSpider(scrapy.Spider):
         else:
             self.logger.error("No ld+json script found on the page.")
 
-        image_url = response.css("img.media-carousel-item__item::attr(src)").get(default="").strip()
-        if not image_url:
-            image_url = self.no_image_url
-        image_urls = [image_url] if image_url else []
+        if not description:
+            description = "No description"
 
-        scraped_at_val = self.old_offers_map.get(response.url, int(time.time()))
+        image_url = response.meta.get("image_url", "")
+        image_urls = [image_url] if image_url else []
+        scraped_at_val = self.old_offers_map.get(product_url, int(time.time()))
+
         yield {
             "store": "LIDL",
-            "url": response.url,
+            "url": product_url,
             "scraped_at": scraped_at_val,
-            "category": response.xpath('//nav[@aria-labelledby="heading-breadcrumbs"]//li[last()]//span[@itemprop="name"]/text()').get(default="No category").strip(),
-            "title": response.css("h1[data-qa-label='keyfacts-title']::text").get(default="No title").strip(),
-            "description": (
-                re.sub(r'\s*\n\s*', '\n', description_soup.get_text(separator="\n")).strip() if (description_soup) else "No description"
-            ),
-            "store_availability": response.css("span.ods-badge__label::text").get(default="Unknown").strip(),
-            "price": (
-                re.sub(r"[^\d.]", "", price) if (price := response.css("div.ods-price__value::text").get()) else "N/A"
-            ),
+            "category": response.meta.get("category", "No category"),
+            "title": response.meta.get("title", "No title"),
+            "description": description,
+            "store_availability": response.meta.get("store_availability", "Unknown"),
+            "price": response.meta.get("price", "N/A"),
             "image_urls": image_urls,
         }
 

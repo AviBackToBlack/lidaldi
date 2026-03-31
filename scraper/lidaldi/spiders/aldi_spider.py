@@ -3,14 +3,15 @@ import os
 import re
 import scrapy
 import time
+from bs4 import BeautifulSoup
 from scrapy import signals
 from urllib.parse import urlparse, urlunparse
 
-
 class AldiSpider(scrapy.Spider):
     name = "aldi"
-    allowed_domains = ["aldi.ie", "api.aldi.ie", "dm.emea.cms.aldi.cx"]
+    allowed_domains = ["aldi.ie", "api.aldi.ie", "dm.emea.cms.aldi.cx", "lidaldi.neit.me"]
     start_urls = ["https://www.aldi.ie/products/specialbuys"]
+    product_detail_api = "https://api.aldi.ie/v2/products/{sku}?serviceType=walk-in"
     no_image_url = ""
 
     @classmethod
@@ -83,45 +84,89 @@ class AldiSpider(scrapy.Spider):
             self.logger.error(f"JSON decode failed on product-search: {e}")
             return
 
-        products = payload.get("data", [])
-        total    = payload.get("meta", {}).get("pagination", {}).get("totalCount", 0)
+        products = payload.get("data") or []
+        meta = payload.get("meta") or {}
+        pagination = meta.get("pagination") or {}
+        total = pagination.get("totalCount") or 0
 
         if total == 0:
             self.logger.error(f"Can not identify totalCount")
             return
 
         for item in products:
-            slug_text = item.get("urlSlugText", "").strip()
-            sku       = item.get("sku", "").strip()
+            slug_text = (item.get("urlSlugText") or "").strip()
+            sku       = (item.get("sku") or "").strip()
             if not (slug_text and sku):
                 self.logger.error(f"Missing slug/SKU in record: {item.get('name')}")
                 continue
             product_url = f"https://www.aldi.ie/product/{slug_text}-{sku}"
-            yield response.follow(product_url, self.parse_product)
+            detail_api_url = self.product_detail_api.format(sku=sku)
+            yield response.follow(
+                detail_api_url, self.parse_product_api,
+                meta={"product_url": product_url, "slug_text": slug_text},
+                dont_filter=True,
+            )
 
         next_offset = offset + limit
         if next_offset < total:
             api_url = f"https://api.aldi.ie/v3/product-search?currency=EUR&categoryKey={specialbuys_category_key}&limit={limit}&offset={next_offset}&getNotForSaleProducts=1&serviceType=walk-in"
             yield response.follow(api_url, self.parse_products_api, meta={"specialbuys_category_key": specialbuys_category_key, "limit": limit, "offset": offset + limit}, dont_filter=True)
 
-    def parse_product(self, response):
-        image_url = response.css("img.base-image[fetchpriority='high']::attr(src)").get(default="").strip()
+    def parse_product_api(self, response):
+        product_url = response.meta["product_url"]
+        slug_text = response.meta["slug_text"]
+
+        try:
+            payload = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decode failed on product detail: {e}")
+            return
+
+        data = payload.get("data") or {}
+        if not data:
+            self.logger.error(f"No data in product detail response for {product_url}")
+            return
+
+        categories = data.get("categories") or []
+        category = (categories[-1].get("name") or "No category") if categories else "No category"
+        brand = (data.get("brandName") or "").strip()
+        name = (data.get("name") or "No title").strip()
+        title = f"{brand} {name}".strip() if brand else name
+        raw_description = data.get("description") or ""
+        description = ""
+        if raw_description:
+            description_soup = BeautifulSoup(raw_description, "html.parser")
+            description = re.sub(
+                r'\s*\n\s*', '\n',
+                description_soup.get_text(separator="\n"),
+            ).strip()
+        if not description:
+            description = "No description"
+        price_data = data.get("price") or {}
+        price_display = price_data.get("amountRelevantDisplay") or ""
+        price = re.sub(r"[^\d.]", "", price_display) if price_display else "N/A"
+        store_availability = (data.get("onSaleDateDisplay") or "Unknown").strip()
+        scraped_at_val = self.old_offers_map.get(product_url, int(time.time()))
+
+        image_url = ""
+        assets = data.get("assets") or []
+        if assets:
+            raw_url = assets[0].get("url") or ""
+            if raw_url:
+                image_url = raw_url.replace("{width}", "306").replace("{slug}", slug_text)
         if not image_url:
             image_url = self.no_image_url
         image_urls = [image_url] if image_url else []
 
-        scraped_at_val = self.old_offers_map.get(response.url, int(time.time()))
         yield {
             "store": "ALDI",
-            "url": response.url,
+            "url": product_url,
             "scraped_at": scraped_at_val,
-            "category" : response.xpath('//nav[@aria-label="Breadcrumb"]/a[last()]/text()').get(default="No category").strip(),
-            "title": response.css("h1.product-details__title::text").get(default="No title").strip(),
-            "description": "\n".join(response.css("div.product-details__information div.base-rich-text.p360-richtext *::text").getall()).strip() or "No description",
-            "store_availability": response.css("div.product-details__text-badges .base-label--info::text").get(default="Unknown").strip(),
-            "price": (
-                re.sub(r"[^\d.]", "", price) if (price := response.css("span.base-price__regular span::text").get()) else "N/A"
-            ),
+            "category": category,
+            "title": title,
+            "description": description,
+            "store_availability": store_availability,
+            "price": price,
             "image_urls": image_urls,
         }
 
