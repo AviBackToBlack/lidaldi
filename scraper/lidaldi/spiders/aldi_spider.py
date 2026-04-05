@@ -9,7 +9,7 @@ from urllib.parse import urlparse, urlunparse
 
 class AldiSpider(scrapy.Spider):
     name = "aldi"
-    allowed_domains = ["aldi.ie", "api.aldi.ie", "dm.emea.cms.aldi.cx", "lidaldi.neit.me"]
+    allowed_domains = ["aldi.ie", "api.aldi.ie", "dm.emea.cms.aldi.cx"]
     start_urls = ["https://www.aldi.ie/products/specialbuys"]
     product_detail_api = "https://api.aldi.ie/v2/products/{sku}?serviceType=walk-in"
     no_image_url = ""
@@ -38,10 +38,6 @@ class AldiSpider(scrapy.Spider):
                         self.old_offers_map[url] = scraped_at
             except Exception as e:
                 self.logger.error(f"Error reading old offers file: {e}")
-            try:
-                os.remove(self.offers_file)
-            except Exception as e:
-                self.logger.error(f"Error removing old offers file: {e}")
 
     def parse(self, response):
         link = None

@@ -1,3 +1,14 @@
+#!/usr/bin/env python3
+"""
+LidAldi Offers Processor
+
+Merges ALDI and LIDL scraped offers into a single dataset, generates
+new_offers.json (for push notifications), and renders the final index.html
+from the template.
+
+Run after both spiders have finished in the cron chain.
+"""
+
 import config
 import json
 import re
@@ -6,6 +17,7 @@ import sys
 import time
 from datetime import datetime
 import requests
+from bs4 import BeautifulSoup
 
 def send_telegram_message(message: str):
     try:
@@ -17,7 +29,7 @@ def send_telegram_message(message: str):
             "text": message,
             "parse_mode": "Markdown"
         }
-        response = requests.post(url, data=payload)
+        response = requests.post(url, data=payload, timeout=10)
         response.raise_for_status()
     except Exception as e:
         sys.stderr.write(f"Error sending Telegram message: {e}\n")
@@ -45,7 +57,13 @@ def parse_store_availability(avail: str) -> str:
         year = now.year
         date_str = f"{dd}-{mm}-{year}"
         parsed = datetime.strptime(date_str, "%d-%m-%Y")
-        return parsed.strftime("%d-%m-%Y") if parsed.date() >= datetime.now().date() else "01-01-0000"
+        if parsed.date() < now.date():
+            # Only roll over for Dec->Jan boundary (current month >= 11, parsed month <= 2)
+            if now.month >= 11 and parsed.month <= 2:
+                parsed = parsed.replace(year=year + 1)
+            else:
+                return "01-01-0000"
+        return parsed.strftime("%d-%m-%Y") if parsed.date() >= now.date() else "01-01-0000"
     match_wdm = re.search(r'\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{1,2})\s+([A-Za-z]{3})', avail)
     if match_wdm:
         day = match_wdm.group(1)
@@ -56,6 +74,15 @@ def parse_store_availability(avail: str) -> str:
             parsed = datetime.strptime(f"{day} {month_abbr} {year}", "%d %b %Y")
         except ValueError:
             return "01-01-0000"
+        if parsed.date() < now.date():
+            # Only roll over for Dec->Jan boundary (current month >= 11, parsed month <= 2)
+            if now.month >= 11 and parsed.month <= 2:
+                try:
+                    parsed = parsed.replace(year=year + 1)
+                except ValueError:
+                    return "01-01-0000"
+            else:
+                return "01-01-0000"
         return parsed.strftime("%d-%m-%Y") if parsed.date() >= now.date() else "01-01-0000"
     if "in store" in low:
         return "01-01-0000"
@@ -67,6 +94,22 @@ def file_exists(path: str) -> bool:
 def load_json_file(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+def extract_previous_urls(index_html_path: str) -> set:
+    """Extract offer URLs from the current (soon-to-be-old) index.html."""
+    if not os.path.exists(index_html_path):
+        return set()
+    try:
+        with open(index_html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        soup = BeautifulSoup(content, "html.parser")
+        script = soup.find("script", {"id": "__SPECIAL_OFFERS_DATA__"})
+        if not script or not script.string:
+            return set()
+        data = json.loads(script.string)
+        return {item["url"] for item in data if item.get("url")}
+    except Exception:
+        return set()
 
 def main():
     try:
@@ -131,6 +174,11 @@ def main():
                 "images": item.get("images", [])
             })
 
+        previous_urls = extract_previous_urls(config.INDEX_HTML)
+        new_offers = [item for item in lidaldi_offers if item.get("url") and item["url"] not in previous_urls]
+        with open(config.NEW_OFFERS_JSON, "w", encoding="utf-8") as f:
+            json.dump(new_offers, f, indent=2, ensure_ascii=False)
+
         if os.path.exists(config.INDEX_TEMPLATE):
             with open(config.INDEX_TEMPLATE, "r", encoding="utf-8") as tpl:
                 template_content = tpl.read()
@@ -140,6 +188,7 @@ def main():
             meta_data = json.dumps({"lastUpdated": today_str}, indent=2)
             new_content = template_content.replace("%%SPECIAL_OFFERS_DATA%%", offers_json_str)
             new_content = new_content.replace("%%SPECIAL_OFFERS_META_DATA%%", meta_data)
+            new_content = new_content.replace("%%VAPID_PUBLIC_KEY%%", config.VAPID_PUBLIC_KEY)
 
             with open(config.INDEX_NEW_HTML, "w", encoding="utf-8") as f:
                 f.write(new_content)

@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const d = new Date();
     d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
     const expires = "expires=" + d.toUTCString();
-    document.cookie = name + "=" + value + ";" + expires + ";path=/";
+    document.cookie = name + "=" + value + ";" + expires + ";path=/;Secure;SameSite=Lax";
   }
 
   function getCookie(name) {
@@ -43,7 +43,128 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   /************************************************
-   * Reading data and last-visit cookie
+   * Sync helpers
+   ***********************************************/
+  const SYNC_STORAGE_KEY = "lidaldi_sync_code";
+  const ALERTS_STORAGE_KEY = "lidaldi_alerts";
+
+  let syncCode = localStorage.getItem(SYNC_STORAGE_KEY) || "";
+  let alerts = JSON.parse(localStorage.getItem(ALERTS_STORAGE_KEY) || "[]");
+
+  async function syncFetch(code) {
+    try {
+      const r = await fetch("/api/sync/" + encodeURIComponent(code));
+      if (!r.ok) return null;
+      return await r.json();
+    } catch (e) {
+      console.warn("Sync fetch failed:", e);
+      return null;
+    }
+  }
+
+  async function syncPost(code, lastVisit, alertsArr, pushSub) {
+    try {
+      const body = { lastVisit: lastVisit, alerts: alertsArr };
+      if (pushSub) body.pushSubscription = pushSub;
+      await fetch("/api/sync/" + encodeURIComponent(code), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      console.warn("Sync post failed:", e);
+    }
+  }
+
+  function generateCode() {
+    var chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    var code = "";
+    var arr = new Uint8Array(8);
+    crypto.getRandomValues(arr);
+    var limit = 256 - (256 % chars.length);
+    for (var i = 0; i < 8; i++) {
+      // Rejection sampling to avoid modulo bias
+      var r = arr[i];
+      while (r >= limit) {
+        var tmp = new Uint8Array(1);
+        crypto.getRandomValues(tmp);
+        r = tmp[0];
+      }
+      code += chars[r % chars.length];
+    }
+    return code;
+  }
+
+  function saveAlertsLocal(arr) {
+    alerts = arr;
+    localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(alerts));
+  }
+
+  /************************************************
+   * Push notification helpers
+   ***********************************************/
+  function urlBase64ToUint8Array(base64String) {
+    var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var raw = atob(base64);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+
+  var swReady = null;
+  if ("serviceWorker" in navigator) {
+    swReady = navigator.serviceWorker
+      .register("/sw.js")
+      .then(function () {
+        return navigator.serviceWorker.ready;
+      })
+      .catch(function (e) {
+        console.warn("SW registration failed:", e);
+        return null;
+      });
+  }
+
+  async function getExistingPushSub() {
+    if (!swReady || !("PushManager" in window)) return null;
+    try {
+      var reg = await swReady;
+      if (!reg) return null;
+      var sub = await reg.pushManager.getSubscription();
+      return sub ? sub.toJSON() : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function subscribePush() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      alert("Push notifications are not supported in this browser.");
+      return null;
+    }
+    var permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      alert("Notification permission was denied.");
+      return null;
+    }
+    var vapidMeta = document.querySelector('meta[name="vapid-public-key"]');
+    if (!vapidMeta || !vapidMeta.getAttribute("content")) return null;
+    var vapidKey = urlBase64ToUint8Array(vapidMeta.getAttribute("content"));
+    var reg = await swReady;
+    if (!reg) return null;
+    var sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: vapidKey,
+    });
+    pushSubscription = sub.toJSON();
+    if (syncCode) {
+      syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
+    }
+    return pushSubscription;
+  }
+
+  /************************************************
+   * Reading data and last-visit (with sync)
    ***********************************************/
   const offersMetaDataElement = document.getElementById(
     "__SPECIAL_OFFERS_META_DATA__"
@@ -72,7 +193,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   let disableNewButton = false;
 
-  let lastVisitCookie = getCookie("lastVisit");
   let lastVisitTimestamp = 0;
 
   if (offersMetaData && offersMetaData.lastUpdated) {
@@ -80,34 +200,55 @@ document.addEventListener("DOMContentLoaded", function () {
       offersMetaData.lastUpdated;
   }
 
-  if (lastVisitCookie) {
-    document.getElementById("lastVisitInfo").style.display = "block";
-    lastVisitTimestamp = parseInt(lastVisitCookie, 10);
-    if (!isNaN(lastVisitTimestamp)) {
-      const d = new Date(lastVisitTimestamp * 1000);
-      const dd = String(d.getDate()).padStart(2, "0");
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const yyyy = d.getFullYear();
-      document.getElementById(
-        "lastVisitDate"
-      ).textContent = `${dd}/${mm}/${yyyy}`;
+  // --- Initialize lastVisit from cookie (synchronous, immediate) ---
+  var cookie = getCookie("lastVisit");
+  if (cookie) lastVisitTimestamp = parseInt(cookie, 10) || 0;
+
+  // Display last visit
+  function updateLastVisitDisplay() {
+    if (lastVisitTimestamp) {
+      document.getElementById("lastVisitInfo").style.display = "block";
+      var d = new Date(lastVisitTimestamp * 1000);
+      var dd = String(d.getDate()).padStart(2, "0");
+      var mm = String(d.getMonth() + 1).padStart(2, "0");
+      var yyyy = d.getFullYear();
+      document.getElementById("lastVisitDate").textContent =
+        dd + "/" + mm + "/" + yyyy;
     }
   }
+  updateLastVisitDisplay();
 
-  if (!lastVisitTimestamp) {
-    activeAvailability = "all";
-    disableNewButton = true;
-  } else {
-    const newItems = offersData.filter(
-      (it) => it.scraped_at > lastVisitTimestamp
-    );
-    if (newItems.length === 0) {
+  function updateNewButtonState() {
+    if (!lastVisitTimestamp) {
       activeAvailability = "all";
       disableNewButton = true;
+    } else {
+      var newItems = offersData.filter(function (it) {
+        return it.scraped_at > lastVisitTimestamp;
+      });
+      if (newItems.length === 0) {
+        activeAvailability = "all";
+        disableNewButton = true;
+      } else {
+        disableNewButton = false;
+      }
+    }
+    // Update the "New" button in the DOM if it exists
+    var newBtn = document.querySelector(
+      '#availability-filters button[data-availability-key="new"]'
+    );
+    if (newBtn) {
+      newBtn.disabled = disableNewButton;
+      newBtn.style.opacity = disableNewButton ? "0.5" : "";
+      newBtn.style.cursor = disableNewButton ? "not-allowed" : "";
     }
   }
+  updateNewButtonState();
 
-  setCookie("lastVisit", Math.floor(Date.now() / 1000).toString());
+  // Update timestamp for this visit
+  var nowTimestamp = Math.floor(Date.now() / 1000);
+  setCookie("lastVisit", nowTimestamp.toString());
+  var pushSubscription = null;
 
   /************************************************
    * Build availability filters
@@ -124,6 +265,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const futureDates = new Set();
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   offersData.forEach((item) => {
     const ds = item.store_availability_date || "";
     if (ds && ds !== "01-01-0000" && ds !== "01-01-9999") {
@@ -143,7 +285,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const dateFilters = sortedFutureDates.map((ds) => {
     const [dd, mm] = ds.split("-");
-    return { key: ds, label: `From ${dd}.${mm}` };
+    return { key: ds, label: "From " + dd + "." + mm };
   });
 
   const availabilityFilters = [...baseFilters, ...dateFilters];
@@ -371,12 +513,19 @@ document.addEventListener("DOMContentLoaded", function () {
       return offersData.length;
     }
 
-    const headerHeight = document.querySelector('header').offsetHeight || 0;
-    const filtersRowHeight = document.querySelector(".filters-row").offsetHeight || 0;
-    const paginationHeight = document.getElementById("paginationContainer").offsetHeight || 0;
+    const headerHeight = document.querySelector("header").offsetHeight || 0;
+    const filtersRowHeight =
+      document.querySelector(".filters-row").offsetHeight || 0;
+    const paginationHeight =
+      document.getElementById("paginationContainer").offsetHeight || 0;
     const footerHeight = document.querySelector("footer").offsetHeight || 0;
 
-    const availableHeight = window.innerHeight - headerHeight - filtersRowHeight - paginationHeight - footerHeight;
+    const availableHeight =
+      window.innerHeight -
+      headerHeight -
+      filtersRowHeight -
+      paginationHeight -
+      footerHeight;
 
     const sampleCard = document.querySelector(".product-card");
     const cardHeight = sampleCard ? sampleCard.offsetHeight : 320;
@@ -385,7 +534,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const grid = document.getElementById("productsGrid");
     const gridStyles = window.getComputedStyle(grid);
-    const templateColumns = gridStyles.getPropertyValue("grid-template-columns");
+    const templateColumns = gridStyles.getPropertyValue(
+      "grid-template-columns"
+    );
     const cols = templateColumns.split(/\s+/).filter(Boolean).length;
 
     return rows * cols;
@@ -440,7 +591,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     filtered = filtered.filter((it) => {
-      const p = parseFloat(it.price) || 0;
+      if (it.price === "N/A") return true;
+      const p = parseFloat(it.price);
+      if (isNaN(p)) return true;
       if (priceFromValue) {
         const pf = parseFloat(priceFromValue);
         if (!isNaN(pf) && p < pf) return false;
@@ -475,75 +628,6 @@ document.addEventListener("DOMContentLoaded", function () {
       filtered.sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
     }
 
-    return filtered;
-  }
-
-  function applyFiltersExceptCategory(data) {
-    let filtered = [...data];
-
-    if (activeAvailability === "inStore") {
-      filtered = filtered.filter((it) => {
-        if (it.store_availability_date === "01-01-0000") return true;
-        if (
-          !it.store_availability_date ||
-          it.store_availability_date === "01-01-9999"
-        )
-          return false;
-
-        const [dd, mm, yyyy] = it.store_availability_date.split("-");
-        const productDate = new Date(+yyyy, +mm - 1, +dd);
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        productDate.setHours(0, 0, 0, 0);
-
-        return productDate <= today;
-      });
-    } else if (activeAvailability === "all") {
-      // no filtering
-    } else if (activeAvailability === "new") {
-      filtered = filtered.filter((it) => it.scraped_at > lastVisitTimestamp);
-    } else {
-      const [fd, fm, fy] = activeAvailability.split("-");
-      const filterDate = new Date(+fy, +fm - 1, +fd);
-      filtered = filtered.filter((it) => {
-        if (!it.store_availability_date) return false;
-        if (
-          it.store_availability_date === "01-01-0000" ||
-          it.store_availability_date === "01-01-9999"
-        )
-          return false;
-        const [id, im, iy] = it.store_availability_date.split("-");
-        const itemDate = new Date(+iy, +im - 1, +id);
-        return itemDate >= filterDate;
-      });
-    }
-
-    filtered = filtered.filter((it) => {
-      const p = parseFloat(it.price) || 0;
-      if (priceFromValue) {
-        const pf = parseFloat(priceFromValue);
-        if (!isNaN(pf) && p < pf) return false;
-      }
-      if (priceToValue) {
-        const pt = parseFloat(priceToValue);
-        if (!isNaN(pt) && p > pt) return false;
-      }
-      return true;
-    });
-
-    if (searchValue) {
-      filtered = filtered.filter((it) => {
-        const t = (
-          it.store +
-          " " +
-          (it.title || "") +
-          " " +
-          (it.description || "")
-        ).toLowerCase();
-        return t.includes(searchValue);
-      });
-    }
     return filtered;
   }
 
@@ -651,7 +735,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const availSpan = document.createElement("span");
       availSpan.textContent = formatAvailability(item.store_availability_date);
       const priceSpan = document.createElement("span");
-      priceSpan.textContent = "€" + item.price;
+      priceSpan.textContent = "\u20ac" + item.price;
 
       infoDiv.appendChild(availSpan);
       infoDiv.appendChild(priceSpan);
@@ -674,12 +758,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const paginationContainer = document.getElementById("paginationContainer");
     paginationContainer.innerHTML = "";
     const prevBtn = document.createElement("button");
-    prevBtn.innerHTML = `
-      <svg viewBox="0 0 24 24">
-        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"></path>
-      </svg>
-      Prev
-    `;
+    prevBtn.innerHTML =
+      '<svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"></path></svg> Prev';
     let prevBtnDisabled = currentPage <= 1;
     prevBtn.disabled = prevBtnDisabled;
     prevBtn.style.opacity = prevBtnDisabled ? "0.5" : "";
@@ -712,12 +792,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     const nextBtn = document.createElement("button");
-    nextBtn.innerHTML = `
-      Next
-      <svg viewBox="0 0 24 24">
-        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"></path>
-      </svg>
-    `;
+    nextBtn.innerHTML =
+      'Next <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"></path></svg>';
     let nextBtnDisabled = currentPage >= totalPages;
     nextBtn.disabled = nextBtnDisabled;
     nextBtn.style.opacity = nextBtnDisabled ? "0.5" : "";
@@ -739,6 +815,216 @@ document.addEventListener("DOMContentLoaded", function () {
     return "From " + dd + "." + mm;
   }
 
+  /************************************************
+   * Alerts & Sync Modal
+   ***********************************************/
+  const alertsModal = document.getElementById("alertsModal");
+  const openAlertsBtn = document.getElementById("openAlertsModal");
+  const closeAlertsBtn = document.getElementById("closeAlertsModal");
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function openModal() {
+    renderAlertsList();
+    updateSyncUI();
+    updateNotificationUI();
+    document.body.style.overflow = "hidden";
+    alertsModal.style.display = "flex";
+  }
+
+  function closeModal() {
+    alertsModal.style.display = "none";
+    document.body.style.overflow = "";
+  }
+
+  openAlertsBtn.addEventListener("click", openModal);
+  closeAlertsBtn.addEventListener("click", closeModal);
+  alertsModal.addEventListener("click", function (e) {
+    if (e.target === alertsModal) closeModal();
+  });
+
+  // --- Sync code UI ---
+  function updateSyncUI() {
+    var display = document.getElementById("syncCodeDisplay");
+    var setup = document.getElementById("syncCodeSetup");
+    var value = document.getElementById("syncCodeValue");
+    if (syncCode) {
+      display.style.display = "flex";
+      setup.style.display = "none";
+      value.textContent = syncCode;
+    } else {
+      display.style.display = "none";
+      setup.style.display = "flex";
+    }
+  }
+
+  document
+    .getElementById("generateSyncCode")
+    .addEventListener("click", function () {
+      syncCode = generateCode();
+      localStorage.setItem(SYNC_STORAGE_KEY, syncCode);
+      updateSyncUI();
+      updateNotificationUI();
+      syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
+    });
+
+  document
+    .getElementById("applySyncCode")
+    .addEventListener("click", async function () {
+      var input = document.getElementById("enterSyncCode");
+      var code = input.value.trim();
+      if (!/^[A-Za-z0-9]{6,8}$/.test(code)) {
+        alert("Invalid sync code. Must be 6-8 alphanumeric characters.");
+        return;
+      }
+      syncCode = code;
+      localStorage.setItem(SYNC_STORAGE_KEY, syncCode);
+      var syncData = await syncFetch(syncCode);
+      if (syncData && syncData.alerts) {
+        saveAlertsLocal(syncData.alerts);
+      }
+      updateSyncUI();
+      updateNotificationUI();
+      renderAlertsList();
+    });
+
+  document
+    .getElementById("copySyncCode")
+    .addEventListener("click", function () {
+      navigator.clipboard.writeText(syncCode).then(function () {
+        var btn = document.getElementById("copySyncCode");
+        btn.textContent = "Copied!";
+        setTimeout(function () {
+          btn.textContent = "Copy";
+        }, 1500);
+      });
+    });
+
+  document
+    .getElementById("removeSyncCode")
+    .addEventListener("click", function () {
+      if (!confirm("Remove sync code? This device will no longer sync."))
+        return;
+      syncCode = "";
+      localStorage.removeItem(SYNC_STORAGE_KEY);
+      updateSyncUI();
+    });
+
+  // --- Notification UI ---
+  function updateNotificationUI() {
+    var btn = document.getElementById("enableNotifications");
+    var status = document.getElementById("notificationStatus");
+    if (!("PushManager" in window)) {
+      btn.disabled = true;
+      status.textContent = "Not supported in this browser";
+      return;
+    }
+    if (!syncCode) {
+      btn.disabled = true;
+      status.textContent = "Set up a sync code first";
+      return;
+    }
+    if (Notification.permission === "granted" && pushSubscription) {
+      btn.disabled = true;
+      status.textContent = "Enabled";
+      return;
+    }
+    if (Notification.permission === "denied") {
+      btn.disabled = true;
+      status.textContent = "Blocked by browser";
+      return;
+    }
+    btn.disabled = false;
+    status.textContent = "";
+  }
+
+  document
+    .getElementById("enableNotifications")
+    .addEventListener("click", async function () {
+      await subscribePush();
+      updateNotificationUI();
+    });
+
+  // --- Alert list ---
+  var matchTypeLabels = {
+    exact: "Exact phrase",
+    allWords: "All words",
+    anyWord: "Any word",
+  };
+
+  function renderAlertsList() {
+    var list = document.getElementById("alertsList");
+    list.innerHTML = "";
+    if (alerts.length === 0) {
+      list.innerHTML =
+        '<p style="color:#666;font-size:0.9rem;">No alerts yet. Add one below.</p>';
+      return;
+    }
+    alerts.forEach(function (alert, i) {
+      var item = document.createElement("div");
+      item.className = "alert-item";
+      item.innerHTML =
+        '<div class="alert-item-info">' +
+        '<span class="alert-item-keyword">' +
+        escapeHtml(alert.keyword) +
+        "</span> " +
+        '<span class="alert-item-type">' +
+        escapeHtml(matchTypeLabels[alert.matchType] || alert.matchType) +
+        "</span>" +
+        "</div>" +
+        '<div class="alert-item-actions">' +
+        '<button class="btn-danger" title="Delete">\u2715</button>' +
+        "</div>";
+      item
+        .querySelector(".btn-danger")
+        .addEventListener("click", function () {
+          deleteAlert(i);
+        });
+      list.appendChild(item);
+    });
+  }
+
+  function addAlert() {
+    var keywordInput = document.getElementById("alertKeyword");
+    var matchSelect = document.getElementById("alertMatchType");
+    var keyword = keywordInput.value.trim();
+    if (!keyword) return;
+    var idArr = new Uint8Array(8);
+    crypto.getRandomValues(idArr);
+    var id = Array.from(idArr, function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+    alerts.push({
+      id: id,
+      keyword: keyword,
+      matchType: matchSelect.value,
+      createdAt: Math.floor(Date.now() / 1000),
+    });
+    saveAlertsLocal(alerts);
+    if (syncCode) syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
+    keywordInput.value = "";
+    renderAlertsList();
+  }
+
+  function deleteAlert(index) {
+    alerts.splice(index, 1);
+    saveAlertsLocal(alerts);
+    if (syncCode) syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
+    renderAlertsList();
+  }
+
+  document.getElementById("addAlertBtn").addEventListener("click", addAlert);
+  document
+    .getElementById("alertKeyword")
+    .addEventListener("keydown", function (e) {
+      if (e.key === "Enter") addAlert();
+    });
+
+  /************************************************
+   * Keyboard navigation
+   ***********************************************/
   window.addEventListener("keydown", function (e) {
     const tag = document.activeElement.tagName.toLowerCase();
     if (tag === "input" || tag === "textarea") return;
@@ -753,8 +1039,62 @@ document.addEventListener("DOMContentLoaded", function () {
         currentPage++;
         render();
       }
+    } else if (e.key === "Escape") {
+      if (alertsModal.style.display !== "none") {
+        closeModal();
+      }
     }
   });
 
+  /************************************************
+   * Initial render (immediate, using cookie data)
+   ***********************************************/
   render();
+
+  /************************************************
+   * Async sync initialization
+   * Runs AFTER the page is fully rendered and all
+   * event listeners are attached. If the sync server
+   * returns a different lastVisit or alerts, the UI
+   * is updated and re-rendered.
+   ***********************************************/
+  (async function initAsync() {
+    try {
+      if (!syncCode) return;
+
+      var syncData = await syncFetch(syncCode);
+      if (syncData) {
+        // Update lastVisit if server has data
+        if (syncData.lastVisit && syncData.lastVisit > 0) {
+          lastVisitTimestamp = syncData.lastVisit;
+          updateLastVisitDisplay();
+          var prevAvailability = activeAvailability;
+          updateNewButtonState();
+          // If we were on "all" only because cookie was empty, switch to "new"
+          if (prevAvailability === "all" && !disableNewButton) {
+            activeAvailability = "new";
+            document
+              .querySelectorAll("#availability-filters button")
+              .forEach(function (b) {
+                b.classList.remove("active");
+                if (b.dataset.availabilityKey === "new") {
+                  b.classList.add("active");
+                }
+              });
+          }
+          render();
+        }
+        // Sync alerts from server
+        if (syncData.alerts && syncData.alerts.length > 0) {
+          saveAlertsLocal(syncData.alerts);
+        }
+      }
+
+      // Get existing push subscription and sync state to server
+      pushSubscription = await getExistingPushSub();
+      syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
+    } catch (e) {
+      console.warn("Async init error:", e);
+    }
+  })();
 });

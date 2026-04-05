@@ -1,3 +1,4 @@
 beautifulsoup4>=4.13.4
 pillow>=11.1.0
+pywebpush>=2.0.0
 Scrapy>=2.12.0

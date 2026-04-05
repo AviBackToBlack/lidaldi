@@ -12,5 +12,8 @@ scrapy crawl lidl
 # Run the post-processing script after both spiders finish
 python /path/to/process_offers.py
 
+# Send push notifications for new offers matching user alerts
+python /path/to/send_notifications.py
+
 # Delete images older than 90 days
 find /path/to/images/folder/* -daystart -mtime +90 -delete

@@ -63,7 +63,9 @@ class ErrorCheckingPipeline:
         try:
             error_count = self.crawler.stats.get_value('log_count/ERROR', 0)
 
-            if self.total_items < 100:
+            if self.total_items == 0:
+                overall_result = "FAILED"
+            elif self.total_items < 100:
                 overall_result = "FAILED"
             elif error_count > 0:
                 overall_result = "FAILED"

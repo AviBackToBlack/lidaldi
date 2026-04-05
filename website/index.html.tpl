@@ -4,6 +4,7 @@
 		<meta charset="UTF-8" />
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="vapid-public-key" content="%%VAPID_PUBLIC_KEY%%" />
 		<title>ALDI.IE &amp; LIDL.IE Special Offers</title>
 		<link rel="stylesheet" href="css/lidaldi.css" />
 	</head>
@@ -61,6 +62,10 @@
 				<button type="button" class="clear-search-btn" style="display: none">×</button>
 			</div>
 			<button id="resetFilters">Reset</button>
+			<button id="openAlertsModal" class="alerts-btn" title="Manage alerts and sync settings">
+				<svg class="alerts-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"></path></svg>
+				Alerts
+			</button>
 		</div>
 
 		<div class="products-grid" id="productsGrid"></div>
@@ -71,6 +76,53 @@
 			<p>Not affiliated with ALDI or LIDL.</p>
 			<p>Contribute on GitHub → <a href="https://github.com/AviBackToBlack/lidaldi" target="_blank">lidaldi</a></p>
 		</footer>
+
+		<!-- Alerts & Sync Modal -->
+		<div class="modal-overlay" id="alertsModal" style="display: none">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2>Alerts &amp; Sync</h2>
+					<button class="modal-close" id="closeAlertsModal">&times;</button>
+				</div>
+				<div class="modal-body">
+					<!-- Sync Code Section -->
+					<h3>Sync Code</h3>
+					<p class="modal-hint">Use the same code on all your devices to sync alerts and "New from last visit".</p>
+					<div class="sync-code-display" id="syncCodeDisplay" style="display: none">
+						<span class="sync-code-value" id="syncCodeValue"></span>
+						<button id="copySyncCode" class="btn-secondary">Copy</button>
+						<button id="removeSyncCode" class="btn-danger">Remove</button>
+					</div>
+					<div class="sync-code-setup" id="syncCodeSetup">
+						<button id="generateSyncCode">Generate New Code</button>
+						<span class="modal-hint">or</span>
+						<input type="text" id="enterSyncCode" placeholder="Enter code" maxlength="8" />
+						<button id="applySyncCode">Apply</button>
+					</div>
+
+					<!-- Notifications Section -->
+					<h3>Push Notifications</h3>
+					<div class="notifications-row">
+						<button id="enableNotifications">Enable Notifications</button>
+						<span id="notificationStatus" class="modal-hint"></span>
+					</div>
+
+					<!-- Alerts Section -->
+					<h3>Your Alerts</h3>
+					<div id="alertsList"></div>
+					<div class="add-alert-form">
+						<input type="text" id="alertKeyword" placeholder="Enter keyword(s)..." />
+						<select id="alertMatchType">
+							<option value="exact">Exact phrase</option>
+							<option value="allWords">All words</option>
+							<option value="anyWord">Any word</option>
+						</select>
+						<button id="addAlertBtn">Add</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<script type="application/json" id="__SPECIAL_OFFERS_META_DATA__">
 			%%SPECIAL_OFFERS_META_DATA%%
 		</script>

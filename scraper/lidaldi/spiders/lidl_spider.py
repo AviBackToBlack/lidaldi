@@ -9,7 +9,7 @@ from urllib.parse import urlparse, urlunparse
 
 class LidlSpider(scrapy.Spider):
     name = "lidl"
-    allowed_domains = ["lidl.ie", "imgproxy-retcat.assets.schwarz", "lidaldi.neit.me"]
+    allowed_domains = ["lidl.ie", "imgproxy-retcat.assets.schwarz"]
     search_api_url = "https://www.lidl.ie/q/api/search?assortment=IE&locale=en_IE&version=2.1.0"
     search_api_fetchsize = 108
     start_urls = [search_api_url]
@@ -39,10 +39,6 @@ class LidlSpider(scrapy.Spider):
                         self.old_offers_map[url] = scraped_at
             except Exception as e:
                 self.logger.error(f"Error reading old offers file: {e}")
-            try:
-                os.remove(self.offers_file)
-            except Exception as e:
-                self.logger.error(f"Error removing old offers file: {e}")
 
     def parse(self, response):
         try:
@@ -107,8 +103,19 @@ class LidlSpider(scrapy.Spider):
 
             product_url = f"https://www.lidl.ie{canonical_url}"
             title = gridbox_data.get("fullTitle") or "No title"
-            price_data = gridbox_data.get("price") or {}
-            raw_price = price_data.get("price")
+
+            # LidlPlus price lives in gridbox.data.lidlPlus[0].price.price
+            # Regular price lives in gridbox.data.price.price
+            raw_price = None
+            if gridbox_data.get("havingPrice"):
+                lidl_plus = gridbox_data.get("lidlPlus") or []
+                if lidl_plus and isinstance(lidl_plus, list):
+                    lp_price_data = (lidl_plus[0].get("price") or {})
+                    raw_price = lp_price_data.get("price")
+                if raw_price is None:
+                    price_data = gridbox_data.get("price") or {}
+                    raw_price = price_data.get("price")
+
             price = str(raw_price) if raw_price is not None else "N/A"
             image_url = gridbox_data.get("image") or self.no_image_url
             stock_avail = gridbox_data.get("stockAvailability") or {}

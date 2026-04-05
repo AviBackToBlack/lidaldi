@@ -104,6 +104,7 @@ FEEDS = {
         'store_empty': False,
         'fields': None,
         'indent': 4,
+        'overwrite': True,
     },
 }
 

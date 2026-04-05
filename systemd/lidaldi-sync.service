@@ -1,0 +1,17 @@
+[Unit]
+Description=LidAldi Sync Server
+After=network.target
+
+[Service]
+Type=simple
+User=lidaldi
+Group=lidaldi
+WorkingDirectory=/opt/your-website-url/offers_processing
+ExecStart=/path/to/venv/bin/python /opt/your-website-url/offers_processing/sync_server.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
