@@ -242,6 +242,17 @@ document.addEventListener("DOMContentLoaded", function () {
       newBtn.style.opacity = disableNewButton ? "0.5" : "";
       newBtn.style.cursor = disableNewButton ? "not-allowed" : "";
     }
+    // Keep the highlighted (active) button in sync with activeAvailability,
+    // so that switching to "all" (because there are 0 new items) also
+    // unhighlights the disabled "New" button.
+    document
+      .querySelectorAll("#availability-filters button")
+      .forEach(function (b) {
+        b.classList.remove("active");
+        if (b.dataset.availabilityKey === activeAvailability) {
+          b.classList.add("active");
+        }
+      });
   }
   updateNewButtonState();
 
