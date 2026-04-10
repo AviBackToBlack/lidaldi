@@ -51,10 +51,11 @@ class AldiSpider(scrapy.Spider):
                             link = element.get("item")
                             break
                 else:
-                    self.logger.error("ld+json does not contain a valid breadcrumb list.")
+                    self.logger.warning("ld+json does not contain a valid breadcrumb list.")
             except Exception as e:
-                self.logger.error(f"Error parsing ld+json: {e}")
+                self.logger.warning(f"Error parsing ld+json: {e}")
         else:
+            # Top-level page missing ld+json is fatal — no products discoverable.
             self.logger.error("No ld+json script found on the page.")
 
         if link:
@@ -93,7 +94,8 @@ class AldiSpider(scrapy.Spider):
             slug_text = (item.get("urlSlugText") or "").strip()
             sku       = (item.get("sku") or "").strip()
             if not (slug_text and sku):
-                self.logger.error(f"Missing slug/SKU in record: {item.get('name')}")
+                self.logger.warning(f"Missing slug/SKU in record: {item.get('name')}")
+                self.crawler.stats.inc_value("lidaldi/dropped_items")
                 continue
             product_url = f"https://www.aldi.ie/product/{slug_text}-{sku}"
             detail_api_url = self.product_detail_api.format(sku=sku)
@@ -115,12 +117,14 @@ class AldiSpider(scrapy.Spider):
         try:
             payload = json.loads(response.text)
         except json.JSONDecodeError as e:
-            self.logger.error(f"JSON decode failed on product detail: {e}")
+            self.logger.warning(f"JSON decode failed on product detail: {e}")
+            self.crawler.stats.inc_value("lidaldi/dropped_items")
             return
 
         data = payload.get("data") or {}
         if not data:
-            self.logger.error(f"No data in product detail response for {product_url}")
+            self.logger.warning(f"No data in product detail response for {product_url}")
+            self.crawler.stats.inc_value("lidaldi/dropped_items")
             return
 
         categories = data.get("categories") or []

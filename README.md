@@ -30,6 +30,11 @@ Thank you for your understanding.
 - **pywebpush:** ≥ 2.0.0
 - **Python:** ≥ 3.9
 - **Scrapy:** ≥ 2.12.0
+- **Operating system:** Linux / BSD / macOS. The sync server and
+  `send_notifications.py` use `fcntl.flock` for cross-process locking and
+  **will not run on Windows**. The scraper and `process_offers.py` are
+  portable, but the full production pipeline (sync + push notifications)
+  targets POSIX only.
 
 ## Project Structure
 
@@ -37,6 +42,8 @@ Thank you for your understanding.
 scraper/                    Scrapy project (ALDI + LIDL spiders)
 offers_processing/
   config.sample.py          Configuration template
+  common.py                 Shared helpers (logging, Telegram, Prometheus, MarkdownV2)
+  sync_store.py             Cross-process locked JSON store for sync profiles (POSIX-only)
   process_offers.py         Merges offers, generates new_offers.json & index.html
   send_notifications.py     Sends Web Push notifications for matched alerts
   sync_server.py            HTTP API for cross-device sync
@@ -106,6 +113,24 @@ systemd/
 
    This creates `vapid_private.pem` and prints the public key. Add both to `config.py`.
 
+   **Lock down the private key** — it is a long-lived signing credential;
+   anyone who reads it can forge push messages to every subscriber:
+
+   ```bash
+   sudo chown lidaldi:lidaldi /opt/lidaldi/offers_processing/vapid_private.pem
+   sudo chmod 600 /opt/lidaldi/offers_processing/vapid_private.pem
+   ```
+
+7. **Optional: Prometheus textfile metrics.**
+
+   `process_offers.py`, `send_notifications.py`, and the Scrapy pipeline can
+   emit `.prom` files for the node_exporter textfile collector. Set
+   `PROM_TEXTFILE_DIR` in both `offers_processing/config.py` and
+   `scraper/lidaldi/settings.py` to the collector directory (typically
+   `/var/lib/prometheus/node-exporter`) and ensure it is writable by the
+   `lidaldi` user. Leave it as `None` to disable. The systemd unit's
+   `ReadWritePaths=` must include this directory if you enable it.
+
 ## Sync Server Setup
 
 The sync server is a zero-dependency Python HTTP server that handles cross-device synchronization.
@@ -135,6 +160,13 @@ The sync server is a zero-dependency Python HTTP server that handles cross-devic
    sudo systemctl daemon-reload
    sudo systemctl enable --now lidaldi-sync
    ```
+
+   The unit ships hardened (`NoNewPrivileges`, `ProtectSystem=strict`,
+   `MemoryDenyWriteExecute`, a restrictive `SystemCallFilter`, etc.). The
+   only writable path is `ReadWritePaths=/opt/lidaldi/offers_processing/sync`
+   — if you point `SYNC_DIR` somewhere else, or enable `PROM_TEXTFILE_DIR`,
+   you **must** add the corresponding directory to `ReadWritePaths=` or the
+   service will fail to write its state.
 
 ## Logging & Scheduling
 

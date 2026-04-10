@@ -76,6 +76,9 @@ class LidlSpider(scrapy.Spider):
         try:
             payload = json.loads(response.text)
         except json.JSONDecodeError as e:
+            # Whole-page failure: we lose an unknown number of items in
+            # this category, so escalate to ERROR. The per-run ratio check
+            # in pipelines.ErrorCheckingPipeline will then catch it.
             self.logger.error(f"JSON decode failed on category API: {e}")
             return
 
@@ -99,6 +102,15 @@ class LidlSpider(scrapy.Spider):
                 self.logger.warning(
                     f"No canonicalUrl for item: {gridbox_data.get('fullTitle')}"
                 )
+                self.crawler.stats.inc_value("lidaldi/dropped_items")
+                continue
+            # Defence in depth: refuse anything that doesn't start with "/"
+            # so a poisoned API response can't inject javascript: or //host/.
+            if not canonical_url.startswith("/") or canonical_url.startswith("//"):
+                self.logger.warning(
+                    f"Suspicious canonicalUrl rejected: {canonical_url}"
+                )
+                self.crawler.stats.inc_value("lidaldi/dropped_items")
                 continue
 
             product_url = f"https://www.lidl.ie{canonical_url}"
@@ -168,9 +180,9 @@ class LidlSpider(scrapy.Spider):
                 else:
                     self.logger.warning("ld+json does not contain description.")
             except Exception as e:
-                self.logger.error(f"Error parsing ld+json: {e}")
+                self.logger.warning(f"Error parsing ld+json: {e}")
         else:
-            self.logger.error("No ld+json script found on the page.")
+            self.logger.warning("No ld+json script found on the page.")
 
         if not description:
             description = "No description"

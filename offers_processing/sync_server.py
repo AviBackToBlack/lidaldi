@@ -9,7 +9,10 @@ Endpoints:
     GET  /api/sync/{code}  - Read sync data
     POST /api/sync/{code}  - Update sync data
 
-Runs as a systemd service behind Nginx reverse proxy.
+Runs as a systemd service behind an Nginx reverse proxy.
+
+Platform: POSIX only. `sync_store` uses fcntl for cross-process locking;
+running on Windows is not supported. See README.md.
 """
 
 import json
@@ -17,23 +20,33 @@ import os
 import re
 import sys
 import time
+import uuid
 import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 import config
+import sync_store
+from common import log_event, hash_prefix
+
 
 SYNC_CODE_RE = re.compile(r"^[A-Za-z0-9]{6,8}$")
-MAX_BODY = 10 * 1024      # 10 KB
+MAX_BODY = 10 * 1024       # 10 KB
 RATE_WINDOW = 60           # seconds
 RATE_MAX = 30              # requests per window per IP
-RATE_MAX_IPS = 10000       # evict rate table when it exceeds this many IPs
+RATE_MAX_IPS = 10000       # soft cap on tracked IPs
 VALID_MATCH_TYPES = {"exact", "allWords", "anyWord"}
 MAX_ALERTS = 50
 MAX_PUSH_SUBS = 10
-MAX_LOCKS = 10000          # evict lock table when it exceeds this many entries
+MAX_TOMBSTONES = 200
+ALERT_ID_RE = re.compile(r"^[A-Za-z0-9]{1,32}$")
+
+# Trusted proxy networks that are allowed to set X-Real-IP / X-Forwarded-For.
+# Anything else sees its TCP peer address and cannot spoof.
+_TRUSTED_PROXIES = {"127.0.0.1", "::1"}
+
 
 # ---------------------------------------------------------------------------
-# Rate limiting (in-memory, per IP)
+# Rate limiting (in-memory, per real-client IP)
 # ---------------------------------------------------------------------------
 _rate = {}
 _rate_lock = threading.Lock()
@@ -42,9 +55,15 @@ _rate_lock = threading.Lock()
 def _rate_limited(ip):
     now = time.time()
     with _rate_lock:
-        # Evict stale IPs to prevent unbounded memory growth
         if len(_rate) > RATE_MAX_IPS:
+            # LRU-ish drop: keep the half with the most recent activity.
+            items = sorted(
+                _rate.items(),
+                key=lambda kv: (max(kv[1]) if kv[1] else 0),
+            )
+            keep = dict(items[-(RATE_MAX_IPS // 2):])
             _rate.clear()
+            _rate.update(keep)
         hits = _rate.get(ip, [])
         hits = [t for t in hits if now - t < RATE_WINDOW]
         if len(hits) >= RATE_MAX:
@@ -56,43 +75,19 @@ def _rate_limited(ip):
 
 
 # ---------------------------------------------------------------------------
-# Per-code file locks (prevents concurrent writes to the same sync file)
+# Per-code in-process locks (paired with fcntl in sync_store for cross-proc)
 # ---------------------------------------------------------------------------
 _locks = {}
 _locks_meta = threading.Lock()
 
 
-def _get_lock(code):
+def _get_thread_lock(code):
     with _locks_meta:
-        # Evict all locks to prevent unbounded memory growth
-        if len(_locks) > MAX_LOCKS:
-            _locks.clear()
-        if code not in _locks:
-            _locks[code] = threading.Lock()
-        return _locks[code]
-
-
-# ---------------------------------------------------------------------------
-# File I/O with atomic writes
-# ---------------------------------------------------------------------------
-def _path(code):
-    return os.path.join(config.SYNC_DIR, f"{code}.json")
-
-
-def _read(code):
-    p = _path(code)
-    if not os.path.exists(p):
-        return None
-    with open(p, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _write(code, data):
-    p = _path(code)
-    tmp = p + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, p)
+        lk = _locks.get(code)
+        if lk is None:
+            lk = threading.Lock()
+            _locks[code] = lk
+        return lk
 
 
 # ---------------------------------------------------------------------------
@@ -101,17 +96,40 @@ def _write(code, data):
 def _valid_alerts(arr):
     if not isinstance(arr, list) or len(arr) > MAX_ALERTS:
         return False
+    seen = set()
     for a in arr:
         if not isinstance(a, dict):
             return False
         allowed_keys = {"id", "keyword", "matchType", "createdAt"}
         if not set(a.keys()).issubset(allowed_keys):
             return False
-        if not isinstance(a.get("id"), str) or len(a["id"]) > 32:
+        if not isinstance(a.get("id"), str) or not ALERT_ID_RE.match(a["id"]):
             return False
+        if a["id"] in seen:
+            return False
+        seen.add(a["id"])
         if not isinstance(a.get("keyword"), str) or not a["keyword"].strip() or len(a["keyword"]) > 200:
             return False
         if a.get("matchType") not in VALID_MATCH_TYPES:
+            return False
+        ca = a.get("createdAt")
+        if ca is not None and not isinstance(ca, (int, float)):
+            return False
+    return True
+
+
+def _valid_tombstones(arr):
+    if arr is None:
+        return True
+    if not isinstance(arr, list) or len(arr) > MAX_TOMBSTONES:
+        return False
+    for t in arr:
+        if not isinstance(t, dict):
+            return False
+        if not isinstance(t.get("id"), str) or not ALERT_ID_RE.match(t["id"]):
+            return False
+        at = t.get("at")
+        if at is not None and not isinstance(at, (int, float)):
             return False
     return True
 
@@ -135,6 +153,25 @@ def _valid_push_sub(s):
 # ---------------------------------------------------------------------------
 class SyncHandler(BaseHTTPRequestHandler):
 
+    def setup(self):
+        super().setup()
+        self.req_id = uuid.uuid4().hex[:12]
+
+    def log_message(self, fmt, *args):  # noqa: ARG002
+        # Structured events emitted explicitly; suppress BaseHTTPServer access log.
+        return
+
+    def _client_ip(self):
+        peer = self.client_address[0]
+        if peer in _TRUSTED_PROXIES:
+            real = self.headers.get("X-Real-IP")
+            if real:
+                return real.strip()
+            xff = self.headers.get("X-Forwarded-For")
+            if xff:
+                return xff.split(",")[0].strip()
+        return peer
+
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", config.SYNC_ALLOWED_ORIGIN)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -146,6 +183,8 @@ class SyncHandler(BaseHTTPRequestHandler):
         body = json.dumps(obj).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
         self._cors()
         self.end_headers()
         self.wfile.write(body)
@@ -154,7 +193,6 @@ class SyncHandler(BaseHTTPRequestHandler):
         self._json(status, {"error": msg})
 
     def _code(self):
-        """Extract and validate sync code from URL path."""
         parts = self.path.rstrip("/").split("/")
         if len(parts) == 4 and parts[1] == "api" and parts[2] == "sync":
             c = parts[3]
@@ -168,25 +206,67 @@ class SyncHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if _rate_limited(self.client_address[0]):
+        ip = self._client_ip()
+        if _rate_limited(ip):
+            log_event("rate_limited", req=self.req_id, ip=ip, method="GET")
             return self._err(429, "Rate limit exceeded")
         code = self._code()
         if not code:
             return self._err(400, "Invalid request")
-        lock = _get_lock(code)
-        with lock:
-            data = _read(code)
+
+        def _read_only(_data):
+            return None
+
+        def _on_corrupt(err):
+            log_event("sync_read_corrupt", req=self.req_id,
+                      code=hash_prefix(code), error=str(err))
+
+        try:
+            data = sync_store.locked_rmw(
+                code, _read_only,
+                thread_lock=_get_thread_lock(code),
+                on_corrupt=_on_corrupt,
+            )
+        except Exception as e:
+            log_event("sync_read_error", req=self.req_id,
+                      code=hash_prefix(code), error=str(e))
+            return self._err(500, "Internal error")
+
         if data is None:
-            return self._json(200, {"lastVisit": 0, "alerts": []})
-        # Never leak push subscriptions to the client
+            log_event("sync_get", req=self.req_id, code=hash_prefix(code),
+                      status="empty")
+            return self._json(200, {"lastVisit": 0, "alerts": [], "tombstones": []})
+
+        # Defence in depth: drop any alerts whose id is in the current
+        # tombstone list before returning. merge_alerts normally prevents
+        # this, but any write that left a tombstoned alert on disk (legacy
+        # profile, concurrent-write race in an older version) would
+        # otherwise resurrect the deletion to every reader.
+        stored_alerts = data.get("alerts", []) or []
+        stored_tombs = data.get("tombstones", []) or []
+        tomb_ids = {
+            t.get("id") for t in stored_tombs
+            if isinstance(t, dict) and isinstance(t.get("id"), str)
+        }
+        visible_alerts = [
+            a for a in stored_alerts
+            if isinstance(a, dict) and a.get("id") not in tomb_ids
+        ]
+
+        log_event("sync_get", req=self.req_id, code=hash_prefix(code),
+                  alerts=len(visible_alerts),
+                  tombstones=len(stored_tombs))
         safe = {
             "lastVisit": data.get("lastVisit", 0),
-            "alerts": data.get("alerts", []),
+            "alerts": visible_alerts,
+            "tombstones": stored_tombs,
         }
         self._json(200, safe)
 
     def do_POST(self):
-        if _rate_limited(self.client_address[0]):
+        ip = self._client_ip()
+        if _rate_limited(ip):
+            log_event("rate_limited", req=self.req_id, ip=ip, method="POST")
             return self._err(429, "Rate limit exceeded")
         code = self._code()
         if not code:
@@ -208,32 +288,41 @@ class SyncHandler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self._err(400, "Expected object")
 
-        # -- lastVisit --
         lv = body.get("lastVisit", 0)
         if not isinstance(lv, (int, float)) or lv < 0:
             return self._err(400, "Invalid lastVisit")
         lv = int(lv)
 
-        # -- alerts (optional: if omitted, keep existing) --
         alerts = body.get("alerts")
         if alerts is not None and not _valid_alerts(alerts):
             return self._err(400, "Invalid alerts")
 
-        # -- pushSubscription (single, this device; optional) --
+        tombs_in = body.get("deletedAlertIds")
+        if not _valid_tombstones(tombs_in):
+            return self._err(400, "Invalid tombstones")
+
         push_sub = body.get("pushSubscription")
         if push_sub is not None and not _valid_push_sub(push_sub):
             return self._err(400, "Invalid push subscription")
 
-        lock = _get_lock(code)
-        with lock:
-            existing = _read(code) or {
-                "lastVisit": 0,
-                "alerts": [],
-                "pushSubscriptions": [],
-            }
+        def modifier(existing):
+            if existing is None:
+                existing = {
+                    "lastVisit": 0,
+                    "alerts": [],
+                    "tombstones": [],
+                    "pushSubscriptions": [],
+                    "notified": [],
+                }
 
-            merged_lv = max(existing.get("lastVisit", 0), lv)
-            merged_alerts = alerts if alerts is not None else existing.get("alerts", [])
+            merged_lv = max(int(existing.get("lastVisit", 0) or 0), lv)
+
+            merged_alerts, merged_tombs = sync_store.merge_alerts(
+                existing.get("alerts", []),
+                existing.get("tombstones", []),
+                alerts,
+                tombs_in,
+            )
 
             subs = list(existing.get("pushSubscriptions", []))
             if push_sub:
@@ -242,18 +331,40 @@ class SyncHandler(BaseHTTPRequestHandler):
                 if len(subs) > MAX_PUSH_SUBS:
                     subs = subs[-MAX_PUSH_SUBS:]
 
-            result = {
+            return {
                 "lastVisit": merged_lv,
                 "alerts": merged_alerts,
+                "tombstones": merged_tombs,
                 "pushSubscriptions": subs,
+                "notified": existing.get("notified", []),
             }
-            _write(code, result)
 
-        safe = {"lastVisit": result["lastVisit"], "alerts": result["alerts"]}
+        def _on_corrupt(err):
+            log_event("sync_read_corrupt", req=self.req_id,
+                      code=hash_prefix(code), error=str(err))
+
+        try:
+            result = sync_store.locked_rmw(
+                code, modifier,
+                thread_lock=_get_thread_lock(code),
+                on_corrupt=_on_corrupt,
+            )
+        except Exception as e:
+            log_event("sync_write_error", req=self.req_id,
+                      code=hash_prefix(code), error=str(e))
+            return self._err(500, "Internal error")
+
+        log_event("sync_post", req=self.req_id, code=hash_prefix(code),
+                  alerts=len(result.get("alerts", [])),
+                  tombstones=len(result.get("tombstones", [])),
+                  subs=len(result.get("pushSubscriptions", [])))
+
+        safe = {
+            "lastVisit": result["lastVisit"],
+            "alerts": result["alerts"],
+            "tombstones": result.get("tombstones", []),
+        }
         self._json(200, safe)
-
-    def log_message(self, fmt, *args):
-        sys.stderr.write(f"[{self.log_date_time_string()}] {fmt % args}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -263,11 +374,11 @@ def main():
     os.makedirs(config.SYNC_DIR, exist_ok=True)
     addr = (config.SYNC_SERVER_HOST, config.SYNC_SERVER_PORT)
     srv = ThreadingHTTPServer(addr, SyncHandler)
-    print(f"LidAldi Sync Server listening on {addr[0]}:{addr[1]}", flush=True)
+    log_event("sync_server_start", host=addr[0], port=addr[1])
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down.")
+        log_event("sync_server_stop", reason="keyboard_interrupt")
         srv.shutdown()
 
 

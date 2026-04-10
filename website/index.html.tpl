@@ -123,6 +123,12 @@
 			</div>
 		</div>
 
+		<!--
+			The placeholders below are substituted by process_offers.py at
+			render time. process_offers.safe_json_for_script() escapes "</"
+			and U+2028/U+2029 so scraped descriptions cannot terminate the
+			<script> tag and inject markup (stored XSS).
+		-->
 		<script type="application/json" id="__SPECIAL_OFFERS_META_DATA__">
 			%%SPECIAL_OFFERS_META_DATA%%
 		</script>

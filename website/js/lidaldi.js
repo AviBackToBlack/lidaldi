@@ -11,15 +11,29 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function getCookie(name) {
     const cname = name + "=";
-    const decodedCookie = decodeURIComponent(document.cookie);
-    const ca = decodedCookie.split(";");
+    // Split the raw header and decode each value individually so a
+    // malformed percent-sequence in an unrelated cookie does not blow up
+    // decodeURIComponent for the whole document.
+    const ca = (document.cookie || "").split(";");
     for (let i = 0; i < ca.length; i++) {
-      let c = ca[i].trim();
+      const c = ca[i].trim();
       if (c.indexOf(cname) === 0) {
-        return c.substring(cname.length, c.length);
+        const raw = c.substring(cname.length);
+        try {
+          return decodeURIComponent(raw);
+        } catch (e) {
+          return raw;
+        }
       }
     }
     return "";
+  }
+
+  /************************************************
+   * URL safety — refuse anything that isn't http(s)
+   ***********************************************/
+  function isSafeHttpUrl(u) {
+    return typeof u === "string" && /^https?:\/\//i.test(u);
   }
 
   /************************************************
@@ -47,9 +61,28 @@ document.addEventListener("DOMContentLoaded", function () {
    ***********************************************/
   const SYNC_STORAGE_KEY = "lidaldi_sync_code";
   const ALERTS_STORAGE_KEY = "lidaldi_alerts";
+  const TOMBSTONES_STORAGE_KEY = "lidaldi_alert_tombstones";
 
   let syncCode = localStorage.getItem(SYNC_STORAGE_KEY) || "";
-  let alerts = JSON.parse(localStorage.getItem(ALERTS_STORAGE_KEY) || "[]");
+  let alerts = [];
+  try {
+    alerts = JSON.parse(localStorage.getItem(ALERTS_STORAGE_KEY) || "[]");
+    if (!Array.isArray(alerts)) alerts = [];
+  } catch (e) {
+    alerts = [];
+  }
+  let tombstones = [];
+  try {
+    tombstones = JSON.parse(localStorage.getItem(TOMBSTONES_STORAGE_KEY) || "[]");
+    if (!Array.isArray(tombstones)) tombstones = [];
+  } catch (e) {
+    tombstones = [];
+  }
+
+  function saveTombstonesLocal(arr) {
+    tombstones = arr;
+    localStorage.setItem(TOMBSTONES_STORAGE_KEY, JSON.stringify(tombstones));
+  }
 
   async function syncFetch(code) {
     try {
@@ -65,12 +98,28 @@ document.addEventListener("DOMContentLoaded", function () {
   async function syncPost(code, lastVisit, alertsArr, pushSub) {
     try {
       const body = { lastVisit: lastVisit, alerts: alertsArr };
+      if (tombstones && tombstones.length) body.deletedAlertIds = tombstones;
       if (pushSub) body.pushSubscription = pushSub;
-      await fetch("/api/sync/" + encodeURIComponent(code), {
+      const r = await fetch("/api/sync/" + encodeURIComponent(code), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (r && r.ok) {
+        // Server has now merged our alerts/tombstones — overwrite local
+        // state with the merged view so all devices converge.
+        try {
+          const merged = await r.json();
+          if (merged && Array.isArray(merged.alerts)) {
+            saveAlertsLocal(merged.alerts);
+          }
+          if (merged && Array.isArray(merged.tombstones)) {
+            saveTombstonesLocal(merged.tombstones);
+          }
+        } catch (e) {
+          // ignore — server returned non-JSON
+        }
+      }
     } catch (e) {
       console.warn("Sync post failed:", e);
     }
@@ -179,6 +228,34 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   if (offersDataElement) {
     offersData = JSON.parse(offersDataElement.textContent);
+  }
+
+  // Sort once so the common default (newest first) requires no per-render
+  // work, and strip items with unsafe URLs up-front.
+  offersData = offersData.filter(function (it) {
+    return it && isSafeHttpUrl(it.url);
+  });
+  offersData.sort(function (a, b) {
+    return (b.scraped_at || 0) - (a.scraped_at || 0);
+  });
+
+  // --- Memoized filter result ---
+  let _filterCache = null;
+  let _filterCacheKey = null;
+  function invalidateFilterCache() {
+    _filterCache = null;
+    _filterCacheKey = null;
+  }
+  function filterCacheKey() {
+    return (
+      activeAvailability + "|" +
+      priceFromValue + "|" +
+      priceToValue + "|" +
+      categoryValue + "|" +
+      sortValue + "|" +
+      searchValue + "|" +
+      lastVisitTimestamp
+    );
   }
 
   let activeAvailability = "new";
@@ -322,6 +399,7 @@ document.addEventListener("DOMContentLoaded", function () {
       btn.classList.add("active");
       activeAvailability = f.key;
       currentPage = 1;
+      invalidateFilterCache();
       render();
     });
     availabilityFiltersDiv.appendChild(btn);
@@ -385,6 +463,7 @@ document.addEventListener("DOMContentLoaded", function () {
       unhighlight(priceFromInput);
     }
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -399,6 +478,7 @@ document.addEventListener("DOMContentLoaded", function () {
       unhighlight(priceToInput);
     }
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -408,6 +488,7 @@ document.addEventListener("DOMContentLoaded", function () {
     clearPriceFromBtn.style.display = "none";
     unhighlight(priceFromInput);
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -417,6 +498,7 @@ document.addEventListener("DOMContentLoaded", function () {
     clearPriceToBtn.style.display = "none";
     unhighlight(priceToInput);
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -425,6 +507,7 @@ document.addEventListener("DOMContentLoaded", function () {
     categoryValue = categorySelect.value;
     categoryValue ? highlight(categorySelect) : unhighlight(categorySelect);
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -447,6 +530,7 @@ document.addEventListener("DOMContentLoaded", function () {
     sortValue = sortbySelect.value;
     sortValue ? highlight(sortbySelect) : unhighlight(sortbySelect);
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -463,6 +547,7 @@ document.addEventListener("DOMContentLoaded", function () {
       unhighlight(searchBox);
     }
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -472,6 +557,7 @@ document.addEventListener("DOMContentLoaded", function () {
     clearSearchBtn.style.display = "none";
     unhighlight(searchBox);
     currentPage = 1;
+    invalidateFilterCache();
     render();
   });
 
@@ -512,6 +598,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     currentPage = 1;
+    invalidateFilterCache();
 
     render();
   });
@@ -633,13 +720,37 @@ document.addEventListener("DOMContentLoaded", function () {
       filtered = filtered.filter((it) => it.category === categoryValue);
     }
 
-    if (sortValue === "price-asc") {
-      filtered.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-    } else if (sortValue === "price-desc") {
-      filtered.sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
+    if (sortValue === "price-asc" || sortValue === "price-desc") {
+      // Unpriced items sort to the end in both directions so they never
+      // land between priced items because of NaN comparisons.
+      const priceOf = (it) => {
+        if (it.price === "N/A") return Number.POSITIVE_INFINITY;
+        const p = parseFloat(it.price);
+        return isNaN(p) ? Number.POSITIVE_INFINITY : p;
+      };
+      if (sortValue === "price-asc") {
+        filtered.sort((a, b) => priceOf(a) - priceOf(b));
+      } else {
+        filtered.sort((a, b) => {
+          const pa = priceOf(a);
+          const pb = priceOf(b);
+          if (pa === Number.POSITIVE_INFINITY && pb === Number.POSITIVE_INFINITY) return 0;
+          if (pa === Number.POSITIVE_INFINITY) return 1;
+          if (pb === Number.POSITIVE_INFINITY) return -1;
+          return pb - pa;
+        });
+      }
     }
 
     return filtered;
+  }
+
+  function applyFiltersMemoized() {
+    const key = filterCacheKey();
+    if (key === _filterCacheKey && _filterCache) return _filterCache;
+    _filterCache = applyFilters(offersData, false);
+    _filterCacheKey = key;
+    return _filterCache;
   }
 
   function render() {
@@ -679,7 +790,7 @@ document.addEventListener("DOMContentLoaded", function () {
       categorySelect.value = "";
     }
 
-    const filtered = applyFilters(offersData);
+    const filtered = applyFiltersMemoized();
     const pageSize = getDynamicPageSize();
 
     totalPages = Math.ceil(filtered.length / pageSize);
@@ -699,8 +810,12 @@ document.addEventListener("DOMContentLoaded", function () {
       card.addEventListener("mouseout", () => stopTooltipTimer(card));
 
       const link = document.createElement("a");
-      link.href = item.url;
+      // Defence in depth: only accept http(s) URLs. Anything else gets "#"
+      // so a poisoned scraper payload cannot land a javascript:/data: sink
+      // even if it somehow slipped through server-side validation.
+      link.href = isSafeHttpUrl(item.url) ? item.url : "#";
       link.target = "_blank";
+      link.rel = "noopener noreferrer";
       link.style.textDecoration = "none";
       link.style.color = "inherit";
 
@@ -1020,8 +1135,15 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function deleteAlert(index) {
+    const removed = alerts[index];
     alerts.splice(index, 1);
     saveAlertsLocal(alerts);
+    // Record a tombstone so other devices know to drop this alert instead
+    // of resurrecting it on next sync. GC is handled server-side.
+    if (removed && removed.id) {
+      tombstones.push({ id: removed.id, at: Math.floor(Date.now() / 1000) });
+      saveTombstonesLocal(tombstones);
+    }
     if (syncCode) syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
     renderAlertsList();
   }
@@ -1037,8 +1159,35 @@ document.addEventListener("DOMContentLoaded", function () {
    * Keyboard navigation
    ***********************************************/
   window.addEventListener("keydown", function (e) {
-    const tag = document.activeElement.tagName.toLowerCase();
-    if (tag === "input" || tag === "textarea") return;
+    // Escape always closes the modal (even while an input is focused).
+    if (e.key === "Escape") {
+      if (alertsModal.style.display !== "none") {
+        closeModal();
+      }
+      return;
+    }
+
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+
+    // Don't hijack arrow keys when the modal is open — they may be used
+    // inside the alert form.
+    if (alertsModal.style.display !== "none") return;
+
+    // Don't hijack arrow keys when any interactive element is focused;
+    // users expect them to change dropdown/select values or move carets.
+    const ae = document.activeElement;
+    if (ae && ae !== document.body) {
+      const tag = (ae.tagName || "").toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        tag === "button" ||
+        ae.isContentEditable
+      ) {
+        return;
+      }
+    }
 
     if (e.key === "ArrowLeft") {
       if (currentPage > 1) {
@@ -1049,10 +1198,6 @@ document.addEventListener("DOMContentLoaded", function () {
       if (currentPage < totalPages) {
         currentPage++;
         render();
-      }
-    } else if (e.key === "Escape") {
-      if (alertsModal.style.display !== "none") {
-        closeModal();
       }
     }
   });
@@ -1093,12 +1238,47 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
               });
           }
+          invalidateFilterCache();
           render();
         }
-        // Sync alerts from server
-        if (syncData.alerts && syncData.alerts.length > 0) {
-          saveAlertsLocal(syncData.alerts);
+        // Merge alerts and tombstones with the server reply. We cannot
+        // blindly overwrite local state here:
+        //   - An empty server reply can come from a corrupted profile that
+        //     sync_store quarantined — adopting [] would wipe every
+        //     device's alerts on reload and POST the wipe back up.
+        //   - Local tombstones from offline deletes may not yet be on the
+        //     server; replacing them would resurrect the deleted alerts.
+        // Instead we mirror the server-side merge_alerts logic locally so
+        // the subsequent POST uploads a correct combined view.
+        var serverAlerts = Array.isArray(syncData.alerts) ? syncData.alerts : [];
+        var serverTombs = Array.isArray(syncData.tombstones) ? syncData.tombstones : [];
+        var tombIds = new Set();
+        var mergedTombs = [];
+        function _pushTomb(t) {
+          if (!t || typeof t !== "object") return;
+          var id = t.id;
+          if (typeof id !== "string" || tombIds.has(id)) return;
+          tombIds.add(id);
+          mergedTombs.push({ id: id, at: Number(t.at) || 0 });
         }
+        serverTombs.forEach(_pushTomb);
+        tombstones.forEach(_pushTomb);
+        saveTombstonesLocal(mergedTombs);
+
+        var alertById = {};
+        alerts.forEach(function (a) {
+          if (a && typeof a.id === "string" && !tombIds.has(a.id)) {
+            alertById[a.id] = a;
+          }
+        });
+        serverAlerts.forEach(function (a) {
+          if (!a || typeof a.id !== "string" || tombIds.has(a.id)) return;
+          var prev = alertById[a.id];
+          var prevCreated = prev && prev.createdAt ? prev.createdAt : 0;
+          var nextCreated = a.createdAt || 0;
+          if (!prev || nextCreated >= prevCreated) alertById[a.id] = a;
+        });
+        saveAlertsLocal(Object.keys(alertById).map(function (k) { return alertById[k]; }));
       }
 
       // Get existing push subscription and sync state to server

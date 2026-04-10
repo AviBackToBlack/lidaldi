@@ -17,6 +17,18 @@ NEWSPIDER_MODULE = "lidaldi.spiders"
 #USER_AGENT = "lidaldi (+http://www.yourdomain.com)"
 
 # Obey robots.txt rules
+#
+# Deliberately disabled. The ALDI.IE and LIDL.IE robots.txt files disallow
+# generic bots from most product listing paths, but this scraper is not a
+# generic crawler:
+#   - It only fetches the non-food category endpoints used to render the
+#     public site, at a strict one-request-per-3-seconds cadence (see
+#     DOWNLOAD_DELAY below).
+#   - It runs once per day from a single IP.
+#   - It hits public, non-authenticated, non-transactional pages only.
+# See the "Important Notice for ALDI.IE and LIDL.IE Representatives" section
+# in README.md for the full rationale. If you fork this project for a
+# different data source, reconsider this setting.
 ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
@@ -110,6 +122,18 @@ FEEDS = {
 
 # Scraping report folder path
 SCRAPING_REPORT_DIR = "/path/to/processing/folder"
+
+# Directory containing offers_processing/common.py. The pipeline imports it
+# dynamically to write Prometheus textfile metrics using the same helper the
+# other scripts use, so bumping the metric format only needs to happen in
+# one place.
+OFFERS_PROCESSING_DIR = "/path/to/processing/folder"
+
+# Prometheus textfile exporter directory. Set to the directory watched by
+# node_exporter's textfile collector (typically
+# /var/lib/prometheus/node-exporter). Leave as None to disable metric
+# emission from the pipeline.
+PROM_TEXTFILE_DIR = None
 
 # ALDI & LIDL default images
 ALDI_NO_IMAGE_URL = "https://example.com/img/aldi_no_image.png"
