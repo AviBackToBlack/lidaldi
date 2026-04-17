@@ -86,7 +86,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function syncFetch(code) {
     try {
-      const r = await fetch("/api/sync/" + encodeURIComponent(code));
+      const r = await fetch("/api/sync/" + encodeURIComponent(code), {
+        cache: "no-store",
+      });
       if (!r.ok) return null;
       return await r.json();
     } catch (e) {
@@ -104,6 +106,7 @@ document.addEventListener("DOMContentLoaded", function () {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        cache: "no-store",
       });
       if (r && r.ok) {
         // Server has now merged our alerts/tombstones — overwrite local
@@ -1013,6 +1016,17 @@ document.addEventListener("DOMContentLoaded", function () {
       if (syncData && syncData.alerts) {
         saveAlertsLocal(syncData.alerts);
       }
+      // Adopt the server's lastVisit so items already seen on another
+      // device are not re-shown as new on this one, and re-render.
+      if (syncData && syncData.lastVisit && syncData.lastVisit > 0) {
+        lastVisitTimestamp = syncData.lastVisit;
+        updateLastVisitDisplay();
+        updateNewButtonState();
+        invalidateFilterCache();
+        render();
+      }
+      // Push our visit timestamp so other devices see this session.
+      syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
       updateSyncUI();
       updateNotificationUI();
       renderAlertsList();
@@ -1218,6 +1232,13 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       if (!syncCode) return;
 
+      // Update server's lastVisit as early as possible, before anything
+      // below that could throw, hang, or let the user navigate away. If
+      // this POST is moved to the end, any failure in between skips it
+      // and other devices with the same key never see this visit.
+      pushSubscription = await getExistingPushSub();
+      syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
+
       var syncData = await syncFetch(syncCode);
       if (syncData) {
         // Update lastVisit if server has data
@@ -1279,11 +1300,10 @@ document.addEventListener("DOMContentLoaded", function () {
           if (!prev || nextCreated >= prevCreated) alertById[a.id] = a;
         });
         saveAlertsLocal(Object.keys(alertById).map(function (k) { return alertById[k]; }));
+        // After merging with the server reply, POST the combined view
+        // so the server picks up any local-only alerts or tombstones.
+        syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
       }
-
-      // Get existing push subscription and sync state to server
-      pushSubscription = await getExistingPushSub();
-      syncPost(syncCode, nowTimestamp, alerts, pushSubscription);
     } catch (e) {
       console.warn("Async init error:", e);
     }
