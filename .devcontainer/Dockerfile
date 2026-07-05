@@ -1,0 +1,5 @@
+# Test environment = pinned official Playwright image (Node LTS +
+# Chromium/Firefox/WebKit with deps; Ubuntu noble -> python3.12) + make.
+FROM mcr.microsoft.com/playwright:v1.61.1-noble
+RUN apt-get update && apt-get install -y --no-install-recommends make python3-venv \
+    && rm -rf /var/lib/apt/lists/*

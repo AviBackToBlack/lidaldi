@@ -1,0 +1,24 @@
+# Reproducible test environment for the LIDALDI refactor (T1).
+# Base image (see .devcontainer/Dockerfile): official Playwright image (pinned)
+# — ships Node LTS and Chromium/Firefox/WebKit browsers with all system deps.
+# Ubuntu 24.04 (noble), system python3 is 3.12 (>= 3.11 floor, D3). Adds `make`.
+services:
+  test:
+    build:
+      context: .devcontainer
+    working_dir: /work
+    volumes:
+      - .:/work
+    environment:
+      - CI=${CI:-}
+    # Keep the container alive for devcontainer / interactive use.
+    command: sleep infinity
+
+  # Opt-in OWASP ZAP baseline scan (D4) — never part of `make test`.
+  # Requires a running target; point ZAP_TARGET at it (compose network or host).
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:2.16.1
+    profiles: ["zap"]
+    volumes:
+      - ./tests:/zap/wrk
+    command: zap-baseline.py -t ${ZAP_TARGET:-http://host.docker.internal:8080} -I

@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [refactor]
+  pull_request:
+    branches: [refactor]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    container:
+      # Same pinned image as docker-compose.yml — local == CI.
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+    steps:
+      - name: Install make + python3-venv
+        run: apt-get update && apt-get install -y --no-install-recommends make python3-venv
+      - uses: actions/checkout@v4
+      - name: make test
+        run: make test
