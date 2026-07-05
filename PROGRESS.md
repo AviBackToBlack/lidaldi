@@ -53,5 +53,5 @@
 | Task | Worker | Session | Status | PR | Verifier |
 |---|---|---|---|---|---|
 | T0 design brief → operator runs Claude Design | orchestrator + operator | — | brief authored (`DESIGN_BRIEF.md`); awaiting exports | — | — |
-| T1 test harness & CI skeleton | W4 QA/DevX | — | dispatching | — | — |
+| T1 test harness & CI skeleton | W4 QA/DevX | devin-3c17963f6b0c42009df40dbc007b5b3f | in progress | — | — |
 | T2–T15 | per DAG | — | pending | — | — |
