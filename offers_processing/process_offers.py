@@ -218,8 +218,8 @@ def exceeds_sanity_ratio(new_count, total_count) -> bool:
 
 def compute_offers_hash(items):
     m = hashlib.sha256()
-    for it in sorted(items, key=lambda x: x.get("url", "")):
-        m.update((it.get("url", "") + "|" + str(it.get("scraped_at", ""))).encode("utf-8"))
+    for it in sorted(items, key=lambda x: offer_id(x)):
+        m.update((offer_id(it) + "|" + str(it.get("scraped_at", ""))).encode("utf-8"))
     return m.hexdigest()
 
 
