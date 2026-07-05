@@ -1,2 +1,4 @@
 node_modules/
 dist/
+# The repo-root (Python) .gitignore excludes "lib/"; re-include the app source.
+!src/lib/
