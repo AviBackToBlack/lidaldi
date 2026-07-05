@@ -11,10 +11,17 @@
 | Phase | Status |
 |---|---|
 | Loop 1 — Requirements & Design | **COMPLETE** (2026-07-05) |
-| **Hard Stop #1 — awaiting operator "GO for Loop 2"** | ⏸ **CURRENT GATE** |
-| Loop 2 — Implementation (T0–T15) | not started |
+| Hard Stop #1 | **SIGNED OFF** (2026-07-05, operator "GO for Loop 2") |
+| Loop 2 — Implementation (T0–T15) | **IN PROGRESS** |
 | Hard Stop #2 — pre-deploy sign-off | not started |
 | Deploy + post-deploy verification | not started |
+
+## Hard Stop #1 sign-off (authoritative decisions)
+
+- **D1–D5: ALL APPROVED.** D3 caveat: VPS currently runs Python 3.8; **operator will manually install Python 3.11 via `ppa:deadsnakes/ppa` and make it the system default**. Loop-2 code targets ≥3.11; installer must verify `python3 --version` ≥3.11 and abort with a clear message otherwise.
+- **Q1–Q3: defaults accepted** (last-visit advances once per session; N/A-priced items kept + badged; `frontend/` top-level dir).
+- **DAG T0–T15, team (W1–W4 + Verifier + SWE-1.6 docs), ACU estimate: APPROVED.**
+- Spec of record for Loop 2 = `LOOP1_DELIVERABLES.md` as amended by the decisions above.
 
 ## Loop 1 — task ledger (all verified against tool output this session)
 
@@ -41,6 +48,10 @@
 - N13 (image GC vs IMAGES_EXPIRES window) — Info; tighten opportunistically in T10
 - N14 (sync-code-only auth, ~46 bits + rate limit) — Info; accepted risk, documented
 
-## Loop 2 — task ledger (to be maintained per task once GO received)
+## Loop 2 — task ledger
 
-_Not started. Will track: task id · worker session id · status · PR · verifier verdict._
+| Task | Worker | Session | Status | PR | Verifier |
+|---|---|---|---|---|---|
+| T0 design brief → operator runs Claude Design | orchestrator + operator | — | brief authored (`DESIGN_BRIEF.md`); awaiting exports | — | — |
+| T1 test harness & CI skeleton | W4 QA/DevX | — | dispatching | — | — |
+| T2–T15 | per DAG | — | pending | — | — |
