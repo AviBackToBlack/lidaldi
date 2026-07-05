@@ -82,6 +82,27 @@ def test_load_corrupt_store_returns_none(po):
     assert po.load_first_seen() is None
 
 
+def test_corrupt_store_quarantined_and_alerted(po, monkeypatch):
+    alerts = []
+    monkeypatch.setattr(po, "telegram", alerts.append)
+    with open(po.config.FIRST_SEEN_JSON, "w", encoding="utf-8") as f:
+        f.write("{not json")
+    assert po.load_first_seen() is None
+    assert not os.path.exists(po.config.FIRST_SEEN_JSON)
+    corrupt_path = po.config.FIRST_SEEN_JSON + ".corrupt"
+    with open(corrupt_path, encoding="utf-8") as f:
+        assert f.read() == "{not json"
+    assert len(alerts) == 1
+    assert "first_seen" in alerts[0]
+
+
+def test_non_dict_store_quarantined(po):
+    with open(po.config.FIRST_SEEN_JSON, "w", encoding="utf-8") as f:
+        json.dump(["not", "a", "dict"], f)
+    assert po.load_first_seen() is None
+    assert os.path.exists(po.config.FIRST_SEEN_JSON + ".corrupt")
+
+
 # ---------------------------------------------------------------------------
 # Sanity-ratio guard
 # ---------------------------------------------------------------------------
@@ -218,6 +239,19 @@ def test_slug_change_end_to_end(po):
     _write_inputs(po, aldi, lidl)
     po.main()
     assert _read(po.config.NEW_OFFERS_JSON) == []
+
+
+def test_corrupt_store_end_to_end(po):
+    """A corrupted store must not break the run or fire notifications;
+    the corrupt file is preserved and the store reseeded."""
+    _catalog(po)
+    po.main()
+    with open(po.config.FIRST_SEEN_JSON, "w", encoding="utf-8") as f:
+        f.write("{not json")
+    po.main()
+    assert _read(po.config.NEW_OFFERS_JSON) == []
+    assert os.path.exists(po.config.FIRST_SEEN_JSON + ".corrupt")
+    assert len(po.load_first_seen()) == 60
 
 
 def test_sanity_ratio_suppresses_notifications(po):

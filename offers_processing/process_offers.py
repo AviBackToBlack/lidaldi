@@ -163,7 +163,7 @@ def load_first_seen():
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, dict):
-            return None
+            raise ValueError(f"expected JSON object, got {type(data).__name__}")
         store = {}
         for pid, entry in data.items():
             if not isinstance(pid, str):
@@ -177,8 +177,33 @@ def load_first_seen():
                 store[pid] = {"first_seen": int(entry), "last_seen": int(entry)}
         return store
     except Exception as e:
-        log_event("first_seen_read_error", path=path, error=str(e))
+        quarantine_corrupt_first_seen(path, e)
         return None
+
+
+def quarantine_corrupt_first_seen(path, error):
+    """Move an unreadable first_seen store aside for forensics and alert
+    the operator. Reseeding resets every first_seen to "now", so the
+    operator may want to restore the store from the sidecar or a backup
+    before the UI starts badging items as "New" off these timestamps."""
+    corrupt_path = path + ".corrupt"
+    try:
+        os.replace(path, corrupt_path)
+    except OSError as move_err:
+        log_event("first_seen_quarantine_error", path=path, error=str(move_err))
+        corrupt_path = None
+    log_event(
+        "first_seen_read_error",
+        path=path,
+        error=str(error),
+        quarantined_to=corrupt_path,
+    )
+    telegram(
+        f"LIDALDI: first_seen store unreadable ({error}); "
+        f"preserved as {corrupt_path or 'N/A'} and reseeding. "
+        f"first_seen timestamps reset — restore from the sidecar or a "
+        f"backup to keep 'New' badges accurate."
+    )
 
 
 def save_first_seen(store):
