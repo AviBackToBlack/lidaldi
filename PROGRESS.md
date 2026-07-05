@@ -53,5 +53,6 @@
 | Task | Worker | Session | Status | PR | Verifier |
 |---|---|---|---|---|---|
 | T0 design brief → operator runs Claude Design | orchestrator + operator | — | brief authored (`DESIGN_BRIEF.md`); awaiting exports | — | — |
-| T1 test harness & CI skeleton | W4 QA/DevX | devin-3c17963f6b0c42009df40dbc007b5b3f | in progress | — | — |
-| T2–T15 | per DAG | — | pending | — | — |
+| T1 test harness & CI skeleton | W4 QA/DevX | devin-3c17963f6b0c42009df40dbc007b5b3f | **merged** | [#1](https://github.com/AviBackToBlack/lidaldi/pull/1), [#2](https://github.com/AviBackToBlack/lidaldi/pull/2) (CI fix) | verifying (devin-63366bad21f44f0d96103ab408899cae) |
+| T2 stable ids + first_seen + offers.json | W1 Backend | devin-46236a21665148f09c73fedd3e2d2d56 | in progress | — | — |
+| T3–T15 | per DAG | — | pending | — | — |
