@@ -1,5 +1,6 @@
 """T2: first_seen store, id-based new-offer classification, offers.json/meta.json."""
 
+import glob
 import json
 import os
 
@@ -89,8 +90,9 @@ def test_corrupt_store_quarantined_and_alerted(po, monkeypatch):
         f.write("{not json")
     assert po.load_first_seen() is None
     assert not os.path.exists(po.config.FIRST_SEEN_JSON)
-    corrupt_path = po.config.FIRST_SEEN_JSON + ".corrupt"
-    with open(corrupt_path, encoding="utf-8") as f:
+    sidecars = glob.glob(po.config.FIRST_SEEN_JSON + ".corrupt.*")
+    assert len(sidecars) == 1
+    with open(sidecars[0], encoding="utf-8") as f:
         assert f.read() == "{not json"
     assert len(alerts) == 1
     assert "first_seen" in alerts[0]
@@ -100,7 +102,7 @@ def test_non_dict_store_quarantined(po):
     with open(po.config.FIRST_SEEN_JSON, "w", encoding="utf-8") as f:
         json.dump(["not", "a", "dict"], f)
     assert po.load_first_seen() is None
-    assert os.path.exists(po.config.FIRST_SEEN_JSON + ".corrupt")
+    assert glob.glob(po.config.FIRST_SEEN_JSON + ".corrupt.*")
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +252,7 @@ def test_corrupt_store_end_to_end(po):
         f.write("{not json")
     po.main()
     assert _read(po.config.NEW_OFFERS_JSON) == []
-    assert os.path.exists(po.config.FIRST_SEEN_JSON + ".corrupt")
+    assert glob.glob(po.config.FIRST_SEEN_JSON + ".corrupt.*")
     assert len(po.load_first_seen()) == 60
 
 

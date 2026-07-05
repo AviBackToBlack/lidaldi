@@ -186,7 +186,7 @@ def quarantine_corrupt_first_seen(path, error):
     the operator. Reseeding resets every first_seen to "now", so the
     operator may want to restore the store from the sidecar or a backup
     before the UI starts badging items as "New" off these timestamps."""
-    corrupt_path = path + ".corrupt"
+    corrupt_path = f"{path}.corrupt.{int(time.time())}"
     try:
         os.replace(path, corrupt_path)
     except OSError as move_err:
