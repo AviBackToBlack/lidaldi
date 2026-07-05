@@ -1,0 +1,44 @@
+[
+  {
+    "store": "ALDI",
+    "id": "000000000001",
+    "url": "https://www.aldi.ie/product/sample-drill-000000000001",
+    "category": "DIY",
+    "title": "Cordless Drill 18V",
+    "scraped_at": 1751500000,
+    "description": "18V cordless drill with two batteries and a carry case.",
+    "store_availability_date": "01-01-0000",
+    "price": "39.99",
+    "image_urls": ["https://www.aldi.ie/img/drill.jpg"],
+    "images": [{ "path": "full/drill.jpg" }],
+    "first_seen": 1751000000
+  },
+  {
+    "store": "LIDL",
+    "id": "/p/sample-air-fryer/p100000001",
+    "url": "https://www.lidl.ie/p/sample-air-fryer/p100000001",
+    "category": "Kitchen",
+    "title": "Air Fryer 4L",
+    "scraped_at": 1751500000,
+    "description": "4 litre air fryer with digital display.",
+    "store_availability_date": "09-07-2026",
+    "price": "44.99",
+    "image_urls": ["https://www.lidl.ie/img/airfryer.jpg"],
+    "images": [{ "path": "full/airfryer.jpg" }],
+    "first_seen": 1751600000
+  },
+  {
+    "store": "LIDL",
+    "id": "/p/sample-tent/p100000002",
+    "url": "https://www.lidl.ie/p/sample-tent/p100000002",
+    "category": "Outdoor",
+    "title": "4-Person Tent",
+    "scraped_at": 1751400000,
+    "description": "Family dome tent, water column 3000 mm.",
+    "store_availability_date": "01-01-9999",
+    "price": "N/A",
+    "image_urls": [],
+    "images": [],
+    "first_seen": 1751300000
+  }
+]
