@@ -88,7 +88,8 @@ def test_process_environment_overrides_env_file(tmp_path, monkeypatch):
     assert cfg.TELEGRAM_BOT_TOKEN == "from-environ"
 
 
-def test_missing_secret_error(tmp_path):
+def test_missing_secret_error(tmp_path, monkeypatch):
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     toml_path, _ = write_config(tmp_path, env_text="TELEGRAM_BOT_TOKEN=tok\n")
     with pytest.raises(ConfigError, match="TELEGRAM_CHAT_ID"):
         config_loader.load(config_path=str(toml_path), env_path=str(tmp_path / ".env"))
