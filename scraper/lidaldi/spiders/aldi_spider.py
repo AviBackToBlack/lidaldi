@@ -101,7 +101,7 @@ class AldiSpider(scrapy.Spider):
             detail_api_url = self.product_detail_api.format(sku=sku)
             yield response.follow(
                 detail_api_url, self.parse_product_api,
-                meta={"product_url": product_url, "slug_text": slug_text},
+                meta={"product_url": product_url, "slug_text": slug_text, "sku": sku},
                 dont_filter=True,
             )
 
@@ -113,6 +113,7 @@ class AldiSpider(scrapy.Spider):
     def parse_product_api(self, response):
         product_url = response.meta["product_url"]
         slug_text = response.meta["slug_text"]
+        sku = response.meta["sku"]
 
         try:
             payload = json.loads(response.text)
@@ -160,6 +161,7 @@ class AldiSpider(scrapy.Spider):
 
         yield {
             "store": "ALDI",
+            "id": sku,
             "url": product_url,
             "scraped_at": scraped_at_val,
             "category": category,
