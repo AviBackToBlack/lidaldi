@@ -58,28 +58,27 @@
 
   $effect(() => onUrlChange(applyUrlState));
 
-  $effect(() => {
-    void (async () => {
-      try {
-        const [o, m] = await Promise.all([loadOffers(), loadMeta()]);
-        offers = sortNewestFirst(o);
-        meta = m;
-      } catch (e) {
-        loadError = e instanceof Error ? e.message : String(e);
-      } finally {
-        loading = false;
-      }
-    })();
+  // One-shot boot work (not reactive): data load + sync handshake.
+  void (async () => {
+    try {
+      const [o, m] = await Promise.all([loadOffers(), loadMeta()]);
+      offers = sortNewestFirst(o);
+      meta = m;
+    } catch (e) {
+      loadError = e instanceof Error ? e.message : String(e);
+    } finally {
+      loading = false;
+    }
+  })();
 
-    // Sync boot: POST this visit, then GET — server lastVisit adoption is
-    // guarded (never newer than the boot value; N1 fix).
-    void (async () => {
-      if (!sync.code) return;
-      await syncPost(sync.code, sync.nowTimestamp, alerts.alerts, alerts.tombstones);
-      const data = await syncFetch(sync.code);
-      if (data) sync.adoptServer(data.lastVisit);
-    })();
-  });
+  // Sync boot: POST this visit, then GET — server lastVisit adoption is
+  // guarded (never newer than the boot value; N1 fix).
+  void (async () => {
+    if (!sync.code) return;
+    await syncPost(sync.code, sync.nowTimestamp, alerts.alerts, alerts.tombstones);
+    const data = await syncFetch(sync.code);
+    if (data) sync.adoptServer(data.lastVisit);
+  })();
 
   const newAvailable = $derived(hasNewOffers(offers, sync.lastVisit));
   const categories = $derived(
