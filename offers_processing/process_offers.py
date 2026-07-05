@@ -69,7 +69,30 @@ def clean_description(desc: str) -> str:
     return desc.strip()
 
 
-def parse_store_availability(avail: str) -> str:
+def _resolve_yearless_date(day: int, month: int, now: datetime):
+    """Resolve a day/month with no year to the calendar date nearest to today.
+
+    Nearest-future-date rule (N7): among the previous, current and next
+    year's occurrences, pick the one closest to today. A nearest occurrence
+    in the past means the availability window already started; a nearest
+    occurrence in the future (even across a year boundary, e.g. "05.03"
+    seen in December) is a genuine future start date. Returns None when no
+    year in the window yields a valid date (e.g. "29.02" outside leap
+    years).
+    """
+    candidates = []
+    for y in (now.year - 1, now.year, now.year + 1):
+        try:
+            candidates.append(datetime(y, month, day))
+        except ValueError:
+            continue
+    if not candidates:
+        return None
+    return min(candidates, key=lambda d: abs((d.date() - now.date()).days))
+
+
+def parse_store_availability(avail: str, now: datetime | None = None) -> str:
+    now = now if now is not None else datetime.now()
     low = avail.lower()
     if "while stock" in low:
         return "01-01-0000"
@@ -82,41 +105,31 @@ def parse_store_availability(avail: str) -> str:
             parsed = datetime.strptime(date_str, "%d-%m-%Y")
         except ValueError:
             return "01-01-9999"
-        return date_str if parsed.date() >= datetime.now().date() else "01-01-0000"
+        return date_str if parsed.date() >= now.date() else "01-01-0000"
     match_dot = re.search(r'(\d{2}\.\d{2})', avail)
     if match_dot:
         dd, mm = match_dot.group(1).split('.')
-        now = datetime.now()
-        year = now.year
-        date_str = f"{dd}-{mm}-{year}"
         try:
-            parsed = datetime.strptime(date_str, "%d-%m-%Y")
+            day, month = int(dd), int(mm)
         except ValueError:
             return "01-01-9999"
-        if parsed.date() < now.date():
-            if now.month >= 11 and parsed.month <= 2:
-                parsed = parsed.replace(year=year + 1)
-            else:
-                return "01-01-0000"
+        if not 1 <= month <= 12:
+            return "01-01-9999"
+        parsed = _resolve_yearless_date(day, month, now)
+        if parsed is None:
+            return "01-01-9999"
         return parsed.strftime("%d-%m-%Y") if parsed.date() >= now.date() else "01-01-0000"
     match_wdm = re.search(r'\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{1,2})\s+([A-Za-z]{3})', avail)
     if match_wdm:
         day = match_wdm.group(1)
         month_abbr = match_wdm.group(2)
-        now = datetime.now()
-        year = now.year
         try:
-            parsed = datetime.strptime(f"{day} {month_abbr} {year}", "%d %b %Y")
+            month = datetime.strptime(month_abbr, "%b").month
         except ValueError:
             return "01-01-9999"
-        if parsed.date() < now.date():
-            if now.month >= 11 and parsed.month <= 2:
-                try:
-                    parsed = parsed.replace(year=year + 1)
-                except ValueError:
-                    return "01-01-9999"
-            else:
-                return "01-01-0000"
+        parsed = _resolve_yearless_date(int(day), month, now)
+        if parsed is None:
+            return "01-01-9999"
         return parsed.strftime("%d-%m-%Y") if parsed.date() >= now.date() else "01-01-0000"
     if "in store" in low:
         return "01-01-0000"
