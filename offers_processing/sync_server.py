@@ -24,9 +24,11 @@ import uuid
 import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
-import config
+from config_loader import get_config
 import sync_store
 from common import log_event, hash_prefix
+
+config = get_config()
 
 
 SYNC_CODE_RE = re.compile(r"^[A-Za-z0-9]{6,8}$")

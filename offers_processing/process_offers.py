@@ -18,12 +18,14 @@ import sys
 import time
 from datetime import datetime
 
-import config
+from config_loader import get_config
 from common import (
     log_event,
     send_telegram_message,
     write_prom_textfile,
 )
+
+config = get_config()
 
 
 # Ratio of new items above which we consider the run suspicious and abort

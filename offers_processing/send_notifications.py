@@ -19,7 +19,7 @@ import sys
 import time
 from urllib.parse import urlparse
 
-import config
+from config_loader import get_config
 import sync_store
 from common import (
     log_event,
@@ -27,6 +27,8 @@ from common import (
     send_telegram_message,
     write_prom_textfile,
 )
+
+config = get_config()
 
 try:
     from pywebpush import WebPusher, WebPushException

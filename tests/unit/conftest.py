@@ -1,10 +1,13 @@
 """Fixtures for backend unit tests.
 
-Installs a stub `config` module before importing process_offers, so the
-module under test can be exercised against per-test temporary paths.
+Points the config loader (T9) at a temporary config.toml + .env fixture
+before importing the modules under test, so they can be exercised against
+per-test temporary paths without a real installation.
 """
 
+import os
 import sys
+import tempfile
 import types
 from pathlib import Path
 
@@ -13,8 +16,29 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "offers_processing"))
 
-_stub_config = types.ModuleType("config")
-sys.modules.setdefault("config", _stub_config)
+_cfg_dir = Path(tempfile.mkdtemp(prefix="lidaldi-test-config-"))
+(_cfg_dir / "processing").mkdir()
+(_cfg_dir / "webroot").mkdir()
+(_cfg_dir / "config.toml").write_text(
+    f"""\
+[paths]
+offers_processing_dir = "{_cfg_dir / 'processing'}"
+website_root_dir = "{_cfg_dir / 'webroot'}"
+
+[sync]
+allowed_origin = "https://example.test"
+
+[push]
+vapid_public_key = "test-vapid-public-key"
+vapid_claims_email = "mailto:test@example.test"
+""",
+    encoding="utf-8",
+)
+(_cfg_dir / ".env").write_text(
+    "TELEGRAM_BOT_TOKEN=dummy\nTELEGRAM_CHAT_ID=dummy\n", encoding="utf-8"
+)
+os.environ["LIDALDI_CONFIG"] = str(_cfg_dir / "config.toml")
+os.environ["LIDALDI_ENV_FILE"] = str(_cfg_dir / ".env")
 
 # Stub the webpush libs so send_notifications imports without the real
 # pywebpush installed; tests monkeypatch send_push and never hit the network.
@@ -51,8 +75,10 @@ sys.modules.setdefault("py_vapid", _stub_py_vapid)
 
 @pytest.fixture
 def sync_env(tmp_path, monkeypatch):
-    """Point the shared config stub at a per-test SYNC_DIR and offers file."""
-    import config as cfg
+    """Point the shared config at a per-test SYNC_DIR and offers file."""
+    from config_loader import get_config
+
+    cfg = get_config()
 
     sync_dir = tmp_path / "sync"
     sync_dir.mkdir()

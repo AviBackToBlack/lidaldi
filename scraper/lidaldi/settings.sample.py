@@ -6,6 +6,45 @@
 #     https://docs.scrapy.org/en/latest/topics/settings.html
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+#
+# Operator-tunable values (paths, delays, image URLs) come from config.toml
+# via offers_processing/config_loader.py (T9). Copy this file to settings.py;
+# only Scrapy-internal tuning should need editing here.
+
+import importlib.util
+import os
+
+
+def _get_lidaldi_config():
+    """Load the shared LIDALDI config via offers_processing/config_loader.py.
+
+    Looks for the loader relative to this file (repo checkout layout) or in
+    $LIDALDI_PROCESSING_DIR (deployed layout where scraper/ and
+    offers_processing/ live apart).
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.environ.get("LIDALDI_PROCESSING_DIR"),
+        os.path.join(here, "..", "..", "offers_processing"),
+    ]
+    for directory in candidates:
+        if not directory:
+            continue
+        path = os.path.join(directory, "config_loader.py")
+        if os.path.exists(path):
+            spec = importlib.util.spec_from_file_location("lidaldi_config_loader", path)
+            if spec is None or spec.loader is None:
+                raise RuntimeError(f"cannot load {path}")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module.get_config()
+    raise RuntimeError(
+        "config_loader.py not found; set LIDALDI_PROCESSING_DIR to the "
+        "directory containing offers_processing/config_loader.py"
+    )
+
+
+_cfg = _get_lidaldi_config()
 
 BOT_NAME = "lidaldi"
 
@@ -37,7 +76,7 @@ ROBOTSTXT_OBEY = False
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-DOWNLOAD_DELAY = 3
+DOWNLOAD_DELAY = _cfg.DOWNLOAD_DELAY
 # The download delay setting will honor only one of:
 #CONCURRENT_REQUESTS_PER_DOMAIN = 16
 #CONCURRENT_REQUESTS_PER_IP = 16
@@ -105,12 +144,12 @@ TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
 
 # ImagesPipeline configuration
-IMAGES_STORE = "/path/to/images/folder"
-IMAGES_EXPIRES = 90
+IMAGES_STORE = _cfg.IMAGES_STORE
+IMAGES_EXPIRES = _cfg.IMAGES_EXPIRES
 
 # Feeds configuration
 FEEDS = {
-    "/path/to/processing/folder/%(name)s_offers.json": {
+    os.path.join(_cfg.OFFERS_PROCESSING_DIR, "%(name)s_offers.json"): {
         'format': 'json',
         'encoding': 'utf8',
         'store_empty': False,
@@ -121,20 +160,20 @@ FEEDS = {
 }
 
 # Scraping report folder path
-SCRAPING_REPORT_DIR = "/path/to/processing/folder"
+SCRAPING_REPORT_DIR = _cfg.SCRAPING_REPORT_DIR
 
 # Directory containing offers_processing/common.py. The pipeline imports it
 # dynamically to write Prometheus textfile metrics using the same helper the
 # other scripts use, so bumping the metric format only needs to happen in
 # one place.
-OFFERS_PROCESSING_DIR = "/path/to/processing/folder"
+OFFERS_PROCESSING_DIR = _cfg.OFFERS_PROCESSING_DIR
 
 # Prometheus textfile exporter directory. Set to the directory watched by
 # node_exporter's textfile collector (typically
 # /var/lib/prometheus/node-exporter). Leave as None to disable metric
 # emission from the pipeline.
-PROM_TEXTFILE_DIR = None
+PROM_TEXTFILE_DIR = _cfg.PROM_TEXTFILE_DIR
 
 # ALDI & LIDL default images
-ALDI_NO_IMAGE_URL = "https://example.com/img/aldi_no_image.png"
-LIDL_NO_IMAGE_URL = "https://example.com/img/lidl_no_image.png"
+ALDI_NO_IMAGE_URL = _cfg.ALDI_NO_IMAGE_URL
+LIDL_NO_IMAGE_URL = _cfg.LIDL_NO_IMAGE_URL

@@ -70,6 +70,10 @@ settings.py
 # Offers processing settings
 config.py
 
+# TOML/.env configuration (T9) — real files carry paths and secrets
+config.toml
+.env
+
 # Test harness (T1)
 .venv/
 node_modules/
