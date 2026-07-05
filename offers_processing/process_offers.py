@@ -2,10 +2,10 @@
 """
 LidAldi Offers Processor
 
-Merges ALDI and LIDL scraped offers into a single dataset, generates
-new_offers.json (for push notifications), writes offers_urls.json (used
-by the next run to determine what is "new"), and renders the final
-index.html from the template.
+Merges ALDI and LIDL scraped offers into a single dataset, maintains the
+first_seen store (stable product id -> first-appearance timestamp), generates
+new_offers.json (for push notifications), writes offers.json/meta.json for
+the frontend, and renders the final index.html from the template.
 
 Run after both spiders have finished in the cron chain.
 """
@@ -33,6 +33,9 @@ NEW_OFFER_SANITY_RATIO = 0.3
 # Minimum plausible offer count. Below this we assume a scraper meltdown
 # even if individual reports said SUCCESS.
 MIN_TOTAL_OFFERS = 50
+
+# first_seen entries not seen for this many days are garbage-collected.
+FIRST_SEEN_GC_DAYS = 180
 
 
 # ---------------------------------------------------------------------------
@@ -139,43 +142,84 @@ def write_atomic(path: str, content: str):
     os.replace(tmp, path)
 
 
-def load_previous_urls() -> set:
-    """Load the previous offer URL set from offers_urls.json.
+def offer_id(item) -> str:
+    """Stable product id: ALDI SKU / LIDL canonical URL path (D5).
+    Falls back to the URL for items scraped before ids existed."""
+    return item.get("id") or item.get("url", "")
 
-    If the file is missing (first run or corruption), returns None so
-    the caller can distinguish "truly no previous state" from "empty
-    set" and avoid the notification-storm failure mode (H2).
+
+def load_first_seen():
+    """Load the first_seen store from FIRST_SEEN_JSON.
+
+    Maps product id -> {"first_seen": ts, "last_seen": ts}. If the file
+    is missing (first run or corruption), returns None so the caller can
+    distinguish "truly no previous state" from "empty store" and avoid
+    the notification-storm failure mode (H2).
     """
-    path = getattr(config, "OFFERS_URLS_JSON", None)
+    path = config.FIRST_SEEN_JSON
     if not path or not os.path.exists(path):
         return None
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        if isinstance(data, list):
-            return {u for u in data if isinstance(u, str)}
-        if isinstance(data, dict) and "urls" in data:
-            return {u for u in data["urls"] if isinstance(u, str)}
-        return None
+        if not isinstance(data, dict):
+            return None
+        store = {}
+        for pid, entry in data.items():
+            if not isinstance(pid, str):
+                continue
+            if isinstance(entry, dict) and "first_seen" in entry:
+                store[pid] = {
+                    "first_seen": int(entry["first_seen"]),
+                    "last_seen": int(entry.get("last_seen", entry["first_seen"])),
+                }
+            elif isinstance(entry, (int, float)):
+                store[pid] = {"first_seen": int(entry), "last_seen": int(entry)}
+        return store
     except Exception as e:
-        log_event("previous_urls_read_error", path=path, error=str(e))
+        log_event("first_seen_read_error", path=path, error=str(e))
         return None
 
 
-def save_previous_urls(urls):
-    path = getattr(config, "OFFERS_URLS_JSON", None)
+def save_first_seen(store):
+    path = config.FIRST_SEEN_JSON
     if not path:
         return
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    write_atomic(path, json.dumps(sorted(urls), ensure_ascii=False))
+    write_atomic(path, json.dumps(store, ensure_ascii=False, sort_keys=True))
+
+
+def update_first_seen(store, current_ids, now):
+    """Update `store` in place with the ids seen in this run.
+
+    Adds new ids with first_seen=last_seen=now, refreshes last_seen for
+    ids present in this run, and garbage-collects entries not seen for
+    more than FIRST_SEEN_GC_DAYS. Returns the set of new ids.
+    """
+    new_ids = {pid for pid in current_ids if pid not in store}
+    for pid in current_ids:
+        if pid in store:
+            store[pid]["last_seen"] = now
+        else:
+            store[pid] = {"first_seen": now, "last_seen": now}
+    cutoff = now - FIRST_SEEN_GC_DAYS * 86400
+    for pid in [p for p, e in store.items() if e["last_seen"] < cutoff]:
+        del store[pid]
+    return new_ids
+
+
+def exceeds_sanity_ratio(new_count, total_count) -> bool:
+    if not total_count:
+        return False
+    return new_count / total_count > NEW_OFFER_SANITY_RATIO
 
 
 def compute_offers_hash(items):
     m = hashlib.sha256()
-    for it in sorted(items, key=lambda x: x.get("url", "")):
-        m.update((it.get("url", "") + "|" + str(it.get("scraped_at", ""))).encode("utf-8"))
+    for it in sorted(items, key=lambda x: offer_id(x)):
+        m.update((offer_id(it) + "|" + str(it.get("scraped_at", ""))).encode("utf-8"))
     return m.hexdigest()
 
 
@@ -281,6 +325,7 @@ def main():
             store_availability = parse_store_availability(item.get("store_availability", "Unknown"))
             lidaldi_offers.append({
                 "store": item.get("store", ""),
+                "id": offer_id(item),
                 "url": item.get("url", ""),
                 "category": item.get("category", ""),
                 "title": item.get("title", ""),
@@ -296,6 +341,7 @@ def main():
             store_availability = parse_store_availability(item.get("store_availability", "Unknown"))
             lidaldi_offers.append({
                 "store": item.get("store", ""),
+                "id": offer_id(item),
                 "url": item.get("url", ""),
                 "category": item.get("category", ""),
                 "title": item.get("title", ""),
@@ -320,26 +366,31 @@ def main():
             )
 
         # ------------------------------------------------------------------
-        # Determine new offers via persisted URL list (H2)
+        # Determine new offers via the first_seen store (H2, D5)
         # ------------------------------------------------------------------
-        previous_urls = load_previous_urls()
-        current_urls = {it["url"] for it in lidaldi_offers if it.get("url")}
+        now_ts = int(time.time())
+        first_seen_store = load_first_seen()
+        current_ids = {offer_id(it) for it in lidaldi_offers if offer_id(it)}
 
-        if previous_urls is None:
-            # First run (or previous state corrupt). Do NOT treat every
-            # item as new — that would trigger a notification storm.
-            log_event("previous_urls_missing", note="skipping new_offers generation")
+        if first_seen_store is None:
+            # First run (or previous state corrupt). Seed the store with
+            # every current id but do NOT treat any item as new — that
+            # would trigger a notification storm.
+            log_event("first_seen_missing", note="seeding store; skipping new_offers generation")
+            first_seen_store = {}
+            update_first_seen(first_seen_store, current_ids, now_ts)
             new_offers = []
         else:
+            new_ids = update_first_seen(first_seen_store, current_ids, now_ts)
             new_offers = [
                 it for it in lidaldi_offers
-                if it.get("url") and it["url"] not in previous_urls
+                if offer_id(it) and offer_id(it) in new_ids
             ]
             ratio = (
                 len(new_offers) / summary["total_items"]
                 if summary["total_items"] else 0.0
             )
-            if ratio > NEW_OFFER_SANITY_RATIO:
+            if exceeds_sanity_ratio(len(new_offers), summary["total_items"]):
                 log_event(
                     "new_offers_ratio_exceeded",
                     ratio=round(ratio, 3),
@@ -352,6 +403,10 @@ def main():
                     f"suppressing notifications for this run."
                 )
                 new_offers = []
+
+        for it in lidaldi_offers:
+            entry = first_seen_store.get(offer_id(it))
+            it["first_seen"] = entry["first_seen"] if entry else now_ts
 
         summary["new_items"] = len(new_offers)
 
@@ -391,18 +446,36 @@ def main():
         )
         new_content = new_content.replace("%%VAPID_PUBLIC_KEY%%", vapid_attr)
 
-        # Persist URL list BEFORE replacing index.html.
+        # Persist the first_seen store BEFORE replacing the published
+        # site files.
         #
-        # index.html and offers_urls.json are two separate writes; there
-        # is a window where one can succeed and the other can fail. If
-        # we wrote index.html first and crashed, the next run would diff
-        # today's offers against the stale (or missing) URL snapshot and
-        # reclassify already-published items as "new", firing a
-        # notification storm. Writing offers_urls.json first makes the
-        # failure mode benign: worst case the site shows yesterday's
-        # data for one cycle, but the next run diffs today's URLs
-        # against today's snapshot and generates zero false new_offers.
-        save_previous_urls(current_urls)
+        # These are separate writes; there is a window where one can
+        # succeed and the other can fail. If we published first and
+        # crashed, the next run would diff today's offers against the
+        # stale (or missing) store and reclassify already-published
+        # items as "new", firing a notification storm. Writing the store
+        # first makes the failure mode benign: worst case the site shows
+        # yesterday's data for one cycle, but the next run diffs today's
+        # ids against today's store and generates zero false new_offers.
+        save_first_seen(first_seen_store)
+
+        # Static data files for the frontend (D2), atomic replace.
+        for path in (config.OFFERS_JSON, config.META_JSON):
+            parent = os.path.dirname(path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+        write_atomic(
+            config.OFFERS_JSON,
+            json.dumps(lidaldi_offers, indent=2, ensure_ascii=False),
+        )
+        write_atomic(
+            config.META_JSON,
+            json.dumps(
+                {"lastUpdated": now_ts, "vapidPublicKey": config.VAPID_PUBLIC_KEY},
+                indent=2,
+                ensure_ascii=False,
+            ),
+        )
 
         # Single atomic rename: write to .tmp, then os.replace into place.
         # This avoids the previous two-step rename that could leave index.html

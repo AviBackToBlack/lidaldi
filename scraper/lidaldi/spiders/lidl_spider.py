@@ -141,6 +141,7 @@ class LidlSpider(scrapy.Spider):
                 product_url, self.parse_product,
                 meta={
                     "product_url": product_url,
+                    "canonical_path": canonical_url,
                     "category": category_label,
                     "title": title,
                     "price": price,
@@ -193,6 +194,7 @@ class LidlSpider(scrapy.Spider):
 
         yield {
             "store": "LIDL",
+            "id": response.meta["canonical_path"],
             "url": product_url,
             "scraped_at": scraped_at_val,
             "category": response.meta.get("category", "No category"),
