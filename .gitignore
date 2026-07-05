@@ -69,3 +69,9 @@ settings.py
 
 # Offers processing settings
 config.py
+
+# Test harness (T1)
+.venv/
+node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/
