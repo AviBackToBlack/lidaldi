@@ -3,7 +3,7 @@
 **Durable state for the orchestrated refactor run. Recovery: read this file; resume from the first incomplete task.**
 
 - Repo: github.com/AviBackToBlack/lidaldi · branch `refactor`
-- Spec of record: `LOOP1_DELIVERABLES.md` (pending sign-off) · brief: `REFACTOR_MASTER_GOAL.md`
+- Spec of record: `LOOP1_DELIVERABLES.md` (signed off, see Hard Stop #1) · brief: `REFACTOR_MASTER_GOAL.md`
 - Orchestrator session: https://app.devin.ai/sessions/acdaf608a52947a0ba010e610b3f3153
 
 ## Phase status
@@ -53,6 +53,10 @@
 | Task | Worker | Session | Status | PR | Verifier |
 |---|---|---|---|---|---|
 | T0 design brief → operator runs Claude Design | orchestrator + operator | — | brief authored (`DESIGN_BRIEF.md`); awaiting exports | — | — |
-| T1 test harness & CI skeleton | W4 QA/DevX | devin-3c17963f6b0c42009df40dbc007b5b3f | **merged** | [#1](https://github.com/AviBackToBlack/lidaldi/pull/1), [#2](https://github.com/AviBackToBlack/lidaldi/pull/2) (CI fix) | verifying (devin-63366bad21f44f0d96103ab408899cae) |
-| T2 stable ids + first_seen + offers.json | W1 Backend | devin-46236a21665148f09c73fedd3e2d2d56 | in progress | — | — |
-| T3–T15 | per DAG | — | pending | — | — |
+| T1 test harness & CI skeleton | W4 QA/DevX | devin-3c17963f6b0c42009df40dbc007b5b3f | **merged + verified** | [#1](https://github.com/AviBackToBlack/lidaldi/pull/1), [#2](https://github.com/AviBackToBlack/lidaldi/pull/2) (CI fix) | **PASS** (devin-63366bad21f44f0d96103ab408899cae) |
+| T2 stable ids + first_seen + offers.json | W1 Backend | devin-46236a21665148f09c73fedd3e2d2d56 | **merged + verified** | [#3](https://github.com/AviBackToBlack/lidaldi/pull/3), [#4](https://github.com/AviBackToBlack/lidaldi/pull/4) (corrupt-store quarantine follow-up) | **PASS** (devin-c769b51ac7984751bc983bc60f579059); low finding fixed in #4 |
+| T3+T4 aggregate push + sync semantics | W1 Backend | devin-524c3844e7f24dc096563200a47eb501 | dispatched | — | — |
+| T5 frontend scaffold | W2 Frontend | devin-2aef11583e8c4af59aaa124b8c538853 | PR open, CI green (worker suspended: quota) | [#5](https://github.com/AviBackToBlack/lidaldi/pull/5) | verifying (devin-163562d42b0a48fdb7200ca6c2819743) |
+| T6–T15 | per DAG | — | pending | — | — |
+
+T2 verifier notes (info): store shape id → {first_seen, last_seen} (GC needs last_seen; loader accepts legacy flat); sanity-ratio suppression still marks offers seen (pre-existing semantics); write_atomic has no fsync (benign — reseed path guarded).
