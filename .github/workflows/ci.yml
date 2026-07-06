@@ -25,3 +25,19 @@ jobs:
         run: bash tests/load/install-k6.sh
       - name: make test
         run: make test
+
+  # T15 migration rehearsal — separate job: it pip-installs the real
+  # requirements.txt and builds the frontend inside the sandbox, so it is
+  # slower than the default tier and isolated from it.
+  test-migration:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+    env:
+      HOME: /root
+    steps:
+      - name: Install make + python3-venv
+        run: apt-get update && apt-get install -y --no-install-recommends make python3-venv
+      - uses: actions/checkout@v4
+      - name: make test-migration
+        run: make test-migration
