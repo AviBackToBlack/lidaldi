@@ -2,8 +2,9 @@
 
 Each test asserts one step of the cutover recorded by the module-scoped
 `cutover` fixture (tests/migration/conftest.py). The rollback rehearsal
-runs LAST in this module — it deliberately restores the legacy state from
-the timestamped backup, exactly as docs/cutover-runbook.md instructs.
+deliberately restores the legacy state from the timestamped backup,
+exactly as docs/cutover-runbook.md instructs, then puts the migrated
+state back so test order does not matter.
 
 Runbook cross-references: every operator step in docs/cutover-runbook.md
 names the test(s) here that prove it.
@@ -220,27 +221,39 @@ def test_push_recorded_in_migrated_profile_ledger(cutover):
 
 
 # --- Step 7 (rollback): manual restore from the timestamped backup ---------
-# MUST run last in this module: it reverts the migrated box to legacy state.
 def test_rollback_restores_legacy_state_from_backup(cutover):
+    # Order-independent: the migrated state it mutates is snapshotted up
+    # front and put back at the end, so the shared module-scoped sandbox is
+    # unaffected for any test that runs after this one.
     v = cutover["vps"]
     backup = cutover["backup"]
+    migrated_sync = {
+        p.name: p.read_bytes() for p in sorted(v["SYNC_DIR"].iterdir())
+    }
+    migrated_toml = (v["APP_ROOT"] / "config.toml").read_bytes()
+    try:
+        # Simulate a bad post-cutover state the operator wants out of.
+        (v["SYNC_DIR"] / f"{SYNC_CODE_A}.json").write_text("{corrupt")
+        (v["SYNC_DIR"] / f"{SYNC_CODE_C}.json").unlink()
+        (v["APP_ROOT"] / "config.toml").write_text("# broken by operator\n")
 
-    # Simulate a bad post-cutover state the operator wants out of.
-    (v["SYNC_DIR"] / f"{SYNC_CODE_A}.json").write_text("{corrupt")
-    (v["SYNC_DIR"] / f"{SYNC_CODE_C}.json").unlink()
-    (v["APP_ROOT"] / "config.toml").write_text("# broken by operator\n")
+        # docs/cutover-runbook.md §Rollback — exact commands.
+        run(["bash", "-c", " && ".join([
+            f'cp -a "{backup}/configs/config.py" "{v["APP_ROOT"]}/offers_processing/"',
+            f'cp -a "{backup}/configs/settings.py" "{v["APP_ROOT"]}/scraper/lidaldi/"',
+            f'rm -rf "{v["SYNC_DIR"]}"',
+            f'cp -a "{backup}/sync" "{v["SYNC_DIR"]}"',
+        ])])
 
-    # docs/cutover-runbook.md §Rollback — exact commands.
-    run(["bash", "-c", " && ".join([
-        f'cp -a "{backup}/configs/config.py" "{v["APP_ROOT"]}/offers_processing/"',
-        f'cp -a "{backup}/configs/settings.py" "{v["APP_ROOT"]}/scraper/lidaldi/"',
-        f'rm -rf "{v["SYNC_DIR"]}"',
-        f'cp -a "{backup}/sync" "{v["SYNC_DIR"]}"',
-    ])])
-
-    assert file_bytes(v["SYNC_DIR"]) == cutover["pre_sync"]
-    assert (v["APP_ROOT"] / "offers_processing" / "config.py").read_bytes() \
-        == cutover["pre_config_py"]
-    # The legacy config.py is authoritative again for the old pipeline; a
-    # subsequent idempotent update.sh re-run is the roll-FORWARD recovery
-    # (T10 verifier note: there is no automated restore in update.sh).
+        assert file_bytes(v["SYNC_DIR"]) == cutover["pre_sync"]
+        assert (v["APP_ROOT"] / "offers_processing" / "config.py").read_bytes() \
+            == cutover["pre_config_py"]
+        # The legacy config.py is authoritative again for the old pipeline; a
+        # subsequent idempotent update.sh re-run is the roll-FORWARD recovery
+        # (T10 verifier note: there is no automated restore in update.sh).
+    finally:
+        for p in list(v["SYNC_DIR"].iterdir()):
+            p.unlink()
+        for name, data in migrated_sync.items():
+            (v["SYNC_DIR"] / name).write_bytes(data)
+        (v["APP_ROOT"] / "config.toml").write_bytes(migrated_toml)
