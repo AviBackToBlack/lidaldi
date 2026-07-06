@@ -183,6 +183,54 @@ def test_removed_key_reported_for_review(sandbox):
     assert 'old_key = "v"' in live_toml.read_text()
 
 
+def test_synctree_never_overwrites_live_config_or_keys(sandbox):
+    run_update(sandbox)
+    app_op = sandbox["APP_ROOT"] / "offers_processing"
+    (app_op / "config.py").write_text("LIVE VALUES\n")
+    (app_op / "vapid_private.pem").write_text("LIVE PEM\n")
+    (app_op / "first_seen.json").write_text('{"live": true}')
+    repo_op = sandbox["repo"] / "offers_processing"
+    (repo_op / "config.py").write_text("REPO VERSION\n")
+    (repo_op / "vapid_private.pem").write_text("REPO PEM\n")
+    (repo_op / "first_seen.json").write_text('{"repo": true}')
+    # Force drift in the tree so synctree actually runs.
+    (repo_op / "common.py").write_text(
+        (repo_op / "common.py").read_text() + "\n# drift\n"
+    )
+    proc = run_update(sandbox)
+    assert "APPLY sync offers_processing" in proc.stdout
+    assert (app_op / "config.py").read_text() == "LIVE VALUES\n"
+    assert (app_op / "vapid_private.pem").read_text() == "LIVE PEM\n"
+    assert (app_op / "first_seen.json").read_text() == '{"live": true}'
+    assert "# drift" in (app_op / "common.py").read_text()
+
+
+def test_synctree_prunes_stale_files_and_converges(sandbox):
+    run_update(sandbox)
+    repo_op = sandbox["repo"] / "offers_processing"
+    app_op = sandbox["APP_ROOT"] / "offers_processing"
+    # Live-only protected files must survive the prune.
+    (app_op / "vapid_private.pem").write_text("LIVE PEM\n")
+    (app_op / "first_seen.json").write_text('{"live": true}')
+    # A file removed from the repo must be pruned from APP_ROOT.
+    (repo_op / "common.py").unlink()
+    proc = run_update(sandbox)
+    assert "APPLY sync offers_processing" in proc.stdout
+    assert not (app_op / "common.py").exists()
+    assert (app_op / "vapid_private.pem").read_text() == "LIVE PEM\n"
+    assert (app_op / "first_seen.json").read_text() == '{"live": true}'
+    # The sync converges: next run is a no-op, not a perpetual re-sync.
+    proc = run_update(sandbox)
+    assert "NOOP" in proc.stdout
+
+
+def test_synctree_preserves_executable_bits(sandbox):
+    run_update(sandbox)
+    script = sandbox["APP_ROOT"] / "scraper" / "run_scrapers.sh"
+    assert script.is_file()
+    assert os.access(script, os.X_OK)
+
+
 def test_second_run_noop_survives_operator_edits(sandbox):
     """Operator-edited live values alone must not cause churn."""
     run_update(sandbox)

@@ -123,9 +123,25 @@ apply_action() {
             install -D -m "${f[3]}" "${f[1]}" "${f[2]}"
             if [ "${f[4]:-}" = "own" ]; then maybe_chown "${f[2]}"; fi
             ;;
-        synctree) # synctree <src> <dst>
+        synctree) # synctree <src> <dst> — live-config/key/data patterns
+            # (config.py, settings.py, *.pem, *.json) are never copied over
+            # nor pruned, mirroring the drift check. Files deleted from the
+            # repo are pruned so the sync converges to a no-op.
             mkdir -p "${f[2]}"
-            cp -a "${f[1]}/." "${f[2]}/"
+            (cd "${f[1]}" && find . -type f ! -path '*/__pycache__/*' \
+                ! -name '*.pyc' ! -name 'config.py' ! -name 'settings.py' \
+                ! -name '*.pem' ! -name '*.json' \
+                -exec cp -a --parents {} "${f[2]}/" \;)
+            (cd "${f[2]}" && find . -type f ! -path '*/__pycache__/*' \
+                ! -name '*.pyc' ! -name 'config.py' ! -name 'settings.py' \
+                ! -name '*.pem' ! -name '*.json' -print0 |
+                while IFS= read -r -d '' p; do
+                    [ -f "${f[1]}/$p" ] || rm -f -- "$p"
+                done)
+            (cd "${f[2]}" && find . -depth -mindepth 1 -type d -empty -print0 |
+                while IFS= read -r -d '' p; do
+                    [ -d "${f[1]}/$p" ] || rmdir -- "$p"
+                done)
             maybe_chown "${f[2]}"
             ;;
         webroot) # webroot <dist> <webroot>
