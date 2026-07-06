@@ -8,7 +8,7 @@ PYTHON ?= python3
 VENV := .venv
 VENV_BIN := $(VENV)/bin
 
-.PHONY: setup test test-unit test-e2e test-load test-security test-zap
+.PHONY: setup test test-unit test-installer test-e2e test-load test-security test-zap
 
 setup: $(VENV)/.ok tests/e2e/node_modules/.ok
 
@@ -23,7 +23,7 @@ tests/e2e/node_modules/.ok: tests/e2e/package.json tests/e2e/package-lock.json
 	cd tests/e2e && npm ci
 	touch $@
 
-test: test-unit test-e2e test-load test-security
+test: test-unit test-installer test-e2e test-load test-security
 
 test-unit: $(VENV)/.ok
 	$(VENV_BIN)/pytest tests/unit
@@ -33,6 +33,10 @@ test-unit: $(VENV)/.ok
 	else \
 		echo "test-unit: frontend/ not present yet — skipping Vitest"; \
 	fi
+
+test-installer: $(VENV)/.ok
+	# Installer/updater tests (T10) — fully sandboxed, safe in any container.
+	$(VENV_BIN)/pytest tests/installer
 
 test-e2e: tests/e2e/node_modules/.ok
 	cd tests/e2e && npx playwright test
@@ -52,7 +56,7 @@ test-security: $(VENV)/.ok
 	# Gate at medium+ severity: the two pre-existing Low findings (B110 in
 	# common.py, B105 placeholder token in config.sample.py) are accepted;
 	# T1 must not modify existing code.
-	$(VENV_BIN)/bandit -q -r --severity-level medium offers_processing scraper
+	$(VENV_BIN)/bandit -q -r --severity-level medium offers_processing scraper deploy
 	# npm audit is gated on frontend/ existing (created by T5).
 	@if [ -d frontend ]; then \
 		cd frontend && npm audit --audit-level=high; \
