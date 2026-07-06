@@ -61,9 +61,9 @@
 | T7 PWA manifest/icons/sw.js | W2 Frontend | devin-7bbc3b7f20034045b4c1ae78e944dae7 | **merged + verified** | [#9](https://github.com/AviBackToBlack/lidaldi/pull/9) | **PASS** (devin-7e31995bf07a45d69b058cabf42702f0) |
 | T9 TOML/.env config migration | W3 DevOps | devin-a64006dcea1e424382abeef855582343 | **merged + verified** | [#7](https://github.com/AviBackToBlack/lidaldi/pull/7) | **PASS** (devin-beedc124b5f745de908083119d2f7dbe); low: secret-in-TOML guard narrow (Telegram keys only, one level deep; vapid_private_key_path not covered) — T10 follow-up |
 | T10 installer/updater | W3 DevOps | devin-4e04a904db114eac9d1555e0cd749999 | dispatched | — | — |
-| T11 .prom metrics parity | W1 Backend | devin-0a059fbea9b74929bca3a4b4b9f6ec22 | PR open, CI green (metric inventory frozen in PR desc) | [#11](https://github.com/AviBackToBlack/lidaldi/pull/11) | verifying (devin-274e49ac82364a2fa4652b3f418c1c8a) |
-| T13 k6 load + security tiers | W4 QA/DevX | devin-1306aaa475a7474aa4ec6d4d258e6e0f | dispatched | — | — |
-| T6 full frontend UI | W2 Frontend | devin-331be1bc188348fea9367b2906fc7e0e | dispatched (T0 exports landed) | — | — |
+| T11 .prom metrics parity | W1 Backend | devin-0a059fbea9b74929bca3a4b4b9f6ec22 | **merged + verified** (metric inventory frozen in PR desc → T14) | [#11](https://github.com/AviBackToBlack/lidaldi/pull/11) | **PASS** (devin-274e49ac82364a2fa4652b3f418c1c8a); info: host .venv mount breaks containerized run (harness quirk) |
+| T13 k6 load + security tiers | W4 QA/DevX | devin-1306aaa475a7474aa4ec6d4d258e6e0f | PR open, CI green (k6 v1.1.0 executes for real; XFF-per-iteration under rate limit; ZAP opt-in verified) | [#13](https://github.com/AviBackToBlack/lidaldi/pull/13) | verifying (devin-42b7edcb4e5e4a198fe82776ee486598) |
+| T6 full frontend UI | W2 Frontend | devin-331be1bc188348fea9367b2906fc7e0e | in progress — suspended on quota, resume on refresh | — | — |
 | T8 (after T6), T14 (after T10), T15 (after T10) | per DAG | — | pending | — | — |
 
 T7 verifier follow-ups (for T6/T10): push payload icon `/img/lidaldi.png` is not shipped by the frontend build — add it to `frontend/public/img/` (T6); static cache `lidaldi-static-v1` needs a cache-name bump discipline when icons/manifest change on deploy (T10/T14 note).
