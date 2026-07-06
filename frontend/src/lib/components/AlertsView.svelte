@@ -21,6 +21,7 @@
 
   let matches = $state<AlertMatches>({});
   let loading = $state(Boolean(sync.code));
+  let fetchFailed = $state(false);
 
   void (async () => {
     if (!sync.code) return;
@@ -34,6 +35,8 @@
       if (Array.isArray(data.alerts)) alerts.setAlerts(data.alerts);
       if (Array.isArray(data.tombstones)) alerts.setTombstones(data.tombstones);
       sync.adoptServer(data.lastVisit);
+    } else {
+      fetchFailed = true;
     }
     loading = false;
   })();
@@ -59,6 +62,11 @@
     </p>
   {:else if loading}
     <p class="status">Loading alert matches…</p>
+  {:else if fetchFailed}
+    <p class="status">
+      Couldn’t load your alert matches — check your connection and reload the
+      page to try again.
+    </p>
   {:else if groups.length === 0}
     <p class="status">No keyword alerts yet — add one under “Manage alerts”.</p>
   {:else}
