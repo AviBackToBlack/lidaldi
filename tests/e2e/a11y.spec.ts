@@ -32,12 +32,14 @@ async function checkA11y(page: Page): Promise<void> {
   ).toEqual([]);
 }
 
-// Axe samples computed colors, so CSS transitions still in flight after a
-// theme toggle (or hover/click) make color-contrast checks nondeterministic.
-// Freeze transitions before any axe run to keep the tier deterministic.
+// Axe samples computed colors, so CSS transitions/animations still in flight
+// after a theme toggle, click, or popover open (e.g. the popover's `pop`
+// keyframe starts at opacity 0) make color-contrast checks nondeterministic.
+// Freeze all motion before any axe run to keep the tier deterministic.
 async function freezeTransitions(page: Page): Promise<void> {
   await page.addStyleTag({
-    content: '*, *::before, *::after { transition: none !important; }',
+    content:
+      '*, *::before, *::after { transition: none !important; animation: none !important; }',
   });
 }
 
