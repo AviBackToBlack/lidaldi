@@ -129,9 +129,14 @@ self.addEventListener("notificationclick", (event) => {
       });
       for (const client of windows) {
         if (new URL(client.url).origin === self.location.origin) {
-          await client.focus();
-          await client.navigate(url);
-          return;
+          try {
+            await client.focus();
+            await client.navigate(url);
+            return;
+          } catch {
+            // e.g. navigate() may reject for uncontrolled clients —
+            // fall through to openWindow.
+          }
         }
       }
       await self.clients.openWindow(url);
