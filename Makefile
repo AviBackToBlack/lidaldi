@@ -8,7 +8,7 @@ PYTHON ?= python3
 VENV := .venv
 VENV_BIN := $(VENV)/bin
 
-.PHONY: setup test test-unit test-installer test-e2e test-load test-security test-zap
+.PHONY: setup test test-unit test-installer test-e2e test-load test-security test-zap test-migration
 
 setup: $(VENV)/.ok tests/e2e/node_modules/.ok
 
@@ -59,6 +59,13 @@ test-security: $(VENV)/.ok
 	else \
 		echo "test-security: frontend/ not present yet — skipping npm audit"; \
 	fi
+
+test-migration: $(VENV)/.ok
+	# T15 migration rehearsal: full VPS cutover in a sandbox (legacy
+	# fixture -> update.sh dry-run/apply -> pipeline + sync + push smoke
+	# -> rollback). Needs network (real pip install + frontend build);
+	# runs as its own CI job, not part of `make test`.
+	$(VENV_BIN)/pytest tests/migration
 
 test-zap:
 	# Opt-in ZAP baseline scan (D4). NOT part of `make test` or default CI.
