@@ -73,9 +73,9 @@ def _write_atomic(path, text):
     directory = os.path.dirname(os.path.abspath(path))
     fd, tmp = tempfile.mkstemp(dir=directory, prefix=".merge_config.")
     try:
-        st = os.stat(path)
-        os.chmod(tmp, st.st_mode & 0o777)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            st = os.stat(path)
+            os.chmod(tmp, st.st_mode & 0o777)
             fh.write(text)
         os.replace(tmp, path)
     except BaseException:
