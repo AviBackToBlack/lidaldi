@@ -16,6 +16,7 @@ running on Windows is not supported. See README.md.
 """
 
 import json
+import math
 import os
 import re
 import sys
@@ -95,6 +96,12 @@ def _get_thread_lock(code):
 # ---------------------------------------------------------------------------
 # Input validation
 # ---------------------------------------------------------------------------
+def _valid_ts(v):
+    """Finite non-bool number usable as a timestamp."""
+    return (not isinstance(v, bool) and isinstance(v, (int, float))
+            and math.isfinite(v))
+
+
 def _valid_alerts(arr):
     if not isinstance(arr, list) or len(arr) > MAX_ALERTS:
         return False
@@ -115,7 +122,7 @@ def _valid_alerts(arr):
         if a.get("matchType") not in VALID_MATCH_TYPES:
             return False
         ca = a.get("createdAt")
-        if ca is not None and not isinstance(ca, (int, float)):
+        if ca is not None and not _valid_ts(ca):
             return False
     return True
 
@@ -131,7 +138,7 @@ def _valid_tombstones(arr):
         if not isinstance(t.get("id"), str) or not ALERT_ID_RE.match(t["id"]):
             return False
         at = t.get("at")
-        if at is not None and not isinstance(at, (int, float)):
+        if at is not None and not _valid_ts(at):
             return False
     return True
 
@@ -297,7 +304,7 @@ class SyncHandler(BaseHTTPRequestHandler):
             return self._err(400, "Expected object")
 
         lv = body.get("lastVisit", 0)
-        if not isinstance(lv, (int, float)) or lv < 0:
+        if not _valid_ts(lv) or lv < 0:
             return self._err(400, "Invalid lastVisit")
         lv = int(lv)
 
