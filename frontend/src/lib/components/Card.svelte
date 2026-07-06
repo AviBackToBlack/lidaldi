@@ -26,6 +26,7 @@
   // (visual placement copied from the design mockup: left 24 / top -10 /
   // right -12 relative to the card).
   const SHOW_DELAY_MS = 400;
+  const popId = `desc-pop-${Math.random().toString(36).slice(2, 10)}`;
   let cardEl = $state<HTMLElement | null>(null);
   let popEl = $state<HTMLElement | null>(null);
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -62,8 +63,17 @@
       showPopover();
     }, SHOW_DELAY_MS);
   }
+
+  // WCAG 1.4.13: hover/focus content must be dismissible without moving
+  // the pointer or focus.
+  function onCardKeydown(e: KeyboardEvent): void {
+    if (e.key === "Escape") hidePopover();
+  }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<!-- The keydown listener only dismisses the hover/focus popover (WCAG
+     1.4.13); the card itself is not interactive — the link inside is. -->
 <article
   class="product-card {offer.store === 'ALDI' ? 'aldi' : 'lidl'}"
   bind:this={cardEl}
@@ -71,14 +81,16 @@
   onmouseleave={hidePopover}
   onfocusin={scheduleShow}
   onfocusout={hidePopover}
+  onkeydown={onCardKeydown}
 >
-  {#if isNew}<span class="new-badge">NEW</span>{/if}
+  {#if isNew}<span class="new-badge">NEW<span class="sr-only"> since your last visit</span></span>{/if}
   <span class="store-badge">{offer.store}</span>
   <a
     class="card-link"
     href={offer.url}
     target="_blank"
     rel="noopener noreferrer"
+    aria-describedby={popId}
   >
     <div class="product-image">
       {#if img}
@@ -97,7 +109,7 @@
       <span class="price">€{offer.price}</span>
     {/if}
   </div>
-  <div class="desc-popover" popover="manual" bind:this={popEl}>
+  <div class="desc-popover" popover="manual" id={popId} bind:this={popEl}>
     <b>{offer.store}</b>
     {offer.description}
     <div class="pop-meta">
@@ -166,10 +178,14 @@
     font-weight: var(--weight-bold);
     letter-spacing: 0.05em;
     color: #fff;
-    background: var(--accent);
+    background: var(--accent-hover);
     padding: 4px 8px;
     border-radius: var(--radius-sm);
     box-shadow: 0 2px 6px rgba(217, 84, 47, 0.4);
+  }
+  :global([data-theme="dark"]) .new-badge {
+    background: var(--accent);
+    color: var(--bg);
   }
 
   .product-image {
@@ -198,7 +214,7 @@
     font-weight: var(--weight-semibold);
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--text-faint);
+    color: var(--text-2);
   }
 
   .product-title {
@@ -219,24 +235,29 @@
   .availability {
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
-    color: var(--text-3);
+    color: var(--text-2);
     white-space: nowrap;
   }
+  /* WCAG contrast: --accent-text on --accent-tint is 4.37:1 in light;
+     --accent-active passes there, --accent-text stays for dark. */
   .price {
     font-size: var(--text-price);
     line-height: 1;
     font-weight: var(--weight-heavy);
-    color: var(--accent-text);
+    color: var(--accent-active);
     background: var(--accent-tint);
     padding: 7px 11px;
     border-radius: var(--radius);
     white-space: nowrap;
     flex: none;
   }
+  :global([data-theme="dark"]) .price {
+    color: var(--accent-text);
+  }
   .price.unknown {
     font-size: var(--text-xs);
     font-weight: var(--weight-bold);
-    color: var(--text-3);
+    color: var(--text-2);
     background: var(--surface-sunken);
     border: 1px dashed var(--border-hover);
     padding: 6px 10px;
@@ -256,9 +277,12 @@
     line-height: 1.5;
     font-weight: var(--weight-medium);
   }
+  /* WCAG contrast: the popover sits on the dark --ink surface, where the
+     light theme's --accent-text is illegible — use the pale --accent-tint
+     there and the dark theme's own --accent-text on black. */
   .desc-popover b {
     display: block;
-    color: var(--accent-text);
+    color: var(--accent-tint);
     font-size: var(--text-xs);
     letter-spacing: 0.05em;
     margin-bottom: 6px;
@@ -270,6 +294,9 @@
     background: #000;
     color: var(--text-2);
   }
+  :global([data-theme="dark"]) .desc-popover b {
+    color: var(--accent-text);
+  }
   .pop-meta {
     display: flex;
     justify-content: space-between;
@@ -277,6 +304,9 @@
     margin-top: 8px;
     font-size: var(--text-xs);
     color: var(--text-faint);
+  }
+  :global([data-theme="dark"]) .pop-meta {
+    color: var(--text-3);
   }
 
   @keyframes pop {
