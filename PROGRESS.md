@@ -12,8 +12,8 @@
 |---|---|
 | Loop 1 — Requirements & Design | **COMPLETE** (2026-07-05) |
 | Hard Stop #1 | **SIGNED OFF** (2026-07-05, operator "GO for Loop 2") |
-| Loop 2 — Implementation (T0–T15) | **IN PROGRESS** |
-| Hard Stop #2 — pre-deploy sign-off | not started |
+| Loop 2 — Implementation (T0–T15) | **COMPLETE** (2026-07-06) — all tasks merged + verified PASS |
+| Hard Stop #2 — pre-deploy sign-off | **AWAITING OPERATOR** |
 | Deploy + post-deploy verification | not started |
 
 ## Hard Stop #1 sign-off (authoritative decisions)
@@ -67,7 +67,7 @@
 | T14 docs refresh | SWE-1.6 docs | devin-f495eee3efd5495791d803724ebc2e4f | **merged + verified** (T6 UI section placeholder — fill after T6/T8) | [#16](https://github.com/AviBackToBlack/lidaldi/pull/16) | **PASS** (devin-ab03da8daf8d440bb11d99a27ae72311); low: tests/README.md summary line omits test-installer tier; host .venv breaks containerized run (harness quirk) |
 | T15 migration rehearsal | W3 DevOps | devin-358afab2acd945e79e10f2b82f8e3ccf | **merged + verified** | [#18](https://github.com/AviBackToBlack/lidaldi/pull/18) | **PASS** (devin-3f14c66ecc4c44dbb3037041ad6a76ee); med for HS#2: F2 must be fixed before cutover (first cron run clobbers SPA index.html); rollback is data-level only (configs+SYNC_DIR, not code/webroot) |
 | D2-fix: stop index.html render in process_offers (T15 finding F2) | W1 Backend | devin-24afd19762764bee9e283d0f133506ff | **merged + verified** — F2 closed | [#19](https://github.com/AviBackToBlack/lidaldi/pull/19) | **PASS** (devin-487b431892334c0ca492ba0f8de72363); low: stale non-strict xfail test_push_icon_shipped_at_web_root now XPASSes — flip in T8/follow-up; pre-existing pwa-push N6 e2e flake |
-| T8 a11y | W2 Frontend | devin-58158c5721ef4411855acf5631bdf9c6 | PR open — verifier **FAIL** relayed to worker for fixes | [#20](https://github.com/AviBackToBlack/lidaldi/pull/20) | **FAIL** (devin-b53cac72aa864812a238d4f429f9677f): high — axe tier flaky on WebKit dark (axe samples chip colors mid-CSS-transition; settled pair 5.25:1 is compliant; fix = disable transitions/settle-wait in applyTheme); low — flip stale xfail test_push_icon_shipped_at_web_root. All other checks passed (keyboard audit, SR semantics, contrast remaps AA, injected-violation detection). Re-verify after worker fix. |
+| T8 a11y | W2 Frontend | devin-58158c5721ef4411855acf5631bdf9c6 | **merged + verified** — two FAIL rounds (flaky axe: CSS transition then popover keyframe sampling) fixed by freezing transitions+animations in a11y specs; webkit --repeat-each=20 = 200/200; stale push-icon xfail flipped | [#20](https://github.com/AviBackToBlack/lidaldi/pull/20) | **PASS on re-verify** (devin-b53cac72aa864812a238d4f429f9677f); axe 4.12.1 pinned, 30 axe checks light+dark ×3 engines, keyboard audit + SR semantics + AA contrast remaps verified hands-on |
 
 T15 findings: F1 no automated legacy config.py→TOML value migration (mandatory manual operator edit, runbook Step 4); F2 **closed** by D2-fix PR #19 (merged + verified); push-icon xfail XPASSes since T6 merged — flip marker in a follow-up.
 
@@ -80,3 +80,16 @@ Frozen contracts so far: sync contract doc `docs/sync-contract.md` (T4 PR #10) �
 T3 verifier notes: N6 (sw.js try/catch) deferred to T7 as planned; per-endpoint ledger shares MAX_NOTIFIED=2000 cap across endpoints (low — heavy multi-device profiles could evict live entries); endpoint hash = sha256[:16] (fine).
 
 T2 verifier notes (info): store shape id → {first_seen, last_seen} (GC needs last_seen; loader accepts legacy flat); sanity-ratio suppression still marks offers seen (pre-existing semantics); write_atomic has no fsync (benign — reseed path guarded).
+
+## Hard Stop #2 — pre-deploy sign-off package (AWAITING OPERATOR)
+
+Loop 2 complete: T0–T15 + D2-fix all merged into `refactor` and verified PASS by fresh-context verifiers (20 PRs: #1–#20). Final suite on `refactor`: pytest unit/installer/migration + Vitest + Playwright e2e (incl. 30 axe a11y checks ×3 engines) + k6 load + security tiers, all green in the pinned container and CI.
+
+**Operator actions required before deploy (docs/cutover-runbook.md is the authoritative procedure):**
+1. Install Python 3.11 on the VPS via `ppa:deadsnakes/ppa` and make it the system default (D3 caveat; installer aborts if <3.11).
+2. Manually migrate legacy config.py values into config.toml/.env (runbook Step 4 — no automated value migration, F1).
+3. Run `deploy/update.sh` per the runbook; rollback is **data-level only** (timestamped backup of configs + SYNC_DIR — not code/webroot/systemd/cron).
+
+**Known caveats (accepted/documented):** stale index.html.tpl may linger on VPS (harmless, nothing reads it — update.sh cp -a never deletes); push unsubscribe is local-only (server prunes on 404/410 — contract follow-up); sw.js static cache name must be bumped when icons/manifest change (docs/operations.md); pre-existing pwa-push e2e flake (documented, passes on rerun); fixture profiles don't exercise dedup against a populated real-VPS notified ledger.
+
+**No production/VPS change until the operator signs off here.**
