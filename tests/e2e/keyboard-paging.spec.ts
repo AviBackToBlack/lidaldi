@@ -7,7 +7,7 @@ import { makeOffers, routeOffers } from './fixtures/offers';
 const BASE = 'http://127.0.0.1:4173';
 
 test.beforeEach(async ({ page }) => {
-  await routeOffers(page, makeOffers(60));
+  await routeOffers(page, makeOffers(200));
   await page.goto(BASE + '/');
   await expect(page.locator('.product-card').first()).toBeVisible();
 });
