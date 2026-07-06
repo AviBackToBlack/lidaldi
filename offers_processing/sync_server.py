@@ -297,7 +297,7 @@ class SyncHandler(BaseHTTPRequestHandler):
             return self._err(400, "Expected object")
 
         lv = body.get("lastVisit", 0)
-        if not isinstance(lv, (int, float)) or lv < 0:
+        if isinstance(lv, bool) or not isinstance(lv, (int, float)) or lv < 0:
             return self._err(400, "Invalid lastVisit")
         lv = int(lv)
 

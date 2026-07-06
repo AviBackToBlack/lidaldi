@@ -64,12 +64,12 @@ def test_post_lastvisit_omitted_does_not_regress(server):
     assert body["lastVisit"] == 1000
 
 
-def test_post_negative_lastvisit_rejected(server):
+def _post_expect_400(server, body):
     import urllib.error
 
     req = urllib.request.Request(
         f"{server}/api/sync/CODE01",
-        data=json.dumps({"lastVisit": -1}).encode(),
+        data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -78,6 +78,16 @@ def test_post_negative_lastvisit_rejected(server):
         assert False, "expected 400"
     except urllib.error.HTTPError as e:
         assert e.code == 400
+
+
+def test_post_negative_lastvisit_rejected(server):
+    _post_expect_400(server, {"lastVisit": -1})
+
+
+def test_post_bool_lastvisit_rejected(server):
+    """JSON true must not be coerced to lastVisit=1."""
+    _post_expect_400(server, {"lastVisit": True})
+    _post_expect_400(server, {"lastVisit": False})
 
 
 # ---------------------------------------------------------------------------

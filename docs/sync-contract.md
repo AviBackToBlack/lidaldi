@@ -20,8 +20,8 @@ Response `200`:
 
 ```json
 {
-  "lastVisit": 1751234567890,
-  "alerts":      [ {"id": "a1", "keyword": "drill", "matchType": "anyWord", "createdAt": 1751000000000} ],
+  "lastVisit": 1751234567,
+  "alerts":      [ {"id": "a1", "keyword": "drill", "matchType": "anyWord", "createdAt": 1751000000} ],
   "tombstones":  [ {"id": "a0", "at": 1751000000.0} ],
   "alertMatches": { "a1": [ {"id": "743956", "at": 1751200000.0} ] }
 }
@@ -31,8 +31,8 @@ Response `200`:
 - Alerts whose id appears in `tombstones` are filtered out of `alerts`.
 - `alertMatches` (from T3) maps alert id → matched offers, where `id` is the
   stable product id carried by `offers.json` items (T2) and `at` is the unix
-  time the alert push was delivered. Entries are GC'd after 30 days and
-  capped at 100 per alert. **Read-only for clients**: only
+  time (seconds) the alert push was delivered. Entries are GC'd after 30
+  days and capped at 100 per alert. **Read-only for clients**: only
   `send_notifications.py` writes it; anything a client POSTs under
   `alertMatches` (or `notified`) is ignored.
 
@@ -42,7 +42,7 @@ Request body (all fields optional):
 
 ```json
 {
-  "lastVisit": 1751234567890,
+  "lastVisit": 1751234567,
   "alerts": [ {"id": "a1", "keyword": "drill", "matchType": "exact|allWords|anyWord", "createdAt": 0} ],
   "deletedAlertIds": [ {"id": "a0", "at": 1751000000.0} ],
   "pushSubscription": {"endpoint": "https://...", "keys": {"p256dh": "...", "auth": "..."}}
@@ -51,8 +51,10 @@ Request body (all fields optional):
 
 Semantics:
 
-- `lastVisit`: merged as `max(stored, posted)`. **Monotonic — the server
-  never regresses it.** Omitting it or posting `0` leaves the stored value
+- `lastVisit`: unix **seconds** (same clock as `first_seen` in
+  `offers.json`), merged as `max(stored, posted)`; booleans are rejected
+  (400). **Monotonic — the server never regresses it.**
+  Omitting it or posting `0` leaves the stored value
   untouched, so a read-only client can safely POST (e.g. to register a push
   subscription) without advancing anyone's lastVisit.
 - `alerts`: merged by id with tombstone suppression; for the same id the
@@ -71,29 +73,35 @@ then GETed and adopted the server value — which it had just advanced — so
 the "new since your last visit" window collapsed to empty on every synced
 device. Correct clients MUST follow these rules:
 
-1. **Read at boot, remember the boot value.** On startup, GET the profile
-   and keep `bootLastVisit` = the server's `lastVisit` (or the local stored
-   value if newer). "New" = `offer.first_seen > bootLastVisit` for the whole
-   session.
-2. **Adopt a server value only if it is newer than the boot value and the
-   client has not advanced yet.** Concretely: after any GET, the client
-   adopts the server `lastVisit` **only if it has not yet advanced this
-   session and the server value is newer than what it read at boot**
-   (another device visited later); it must never let a value it advanced
-   itself shrink the current session's "new" window.
-3. **Advance once per session.** After rendering with `bootLastVisit`,
-   POST `lastVisit = sessionStart` exactly once per session
-   (sessionStorage-guarded). Never POST `now` before the first GET.
-4. Reads are GETs; a POST that isn't meant to advance lastVisit must omit
-   the field or send `0`.
+1. **Freeze the boot value per session.** On a session's first load the
+   client snapshots its locally stored `lastVisit` into session scope as
+   `bootLastVisit` and advances the persistent local value to `now`
+   (sessionStorage-guarded, so reloads within the session reuse the
+   snapshot and do not advance again). "New" =
+   `offer.first_seen > bootLastVisit` for the whole session.
+2. **Never adopt a server value newer than the boot value.** After any
+   GET, the client adopts the server `lastVisit` **only if it is not newer
+   than `bootLastVisit`** (`server <= bootLastVisit`; see T5
+   `adoptServerLastVisit` in `frontend/src/lib/logic/lastvisit.ts`). A
+   newer server value is necessarily one some device (possibly this one)
+   just advanced, and adopting it would collapse the "new" window — the
+   N1 self-race. Exception: a first-visit client (`bootLastVisit == 0`)
+   adopts the server value so items already seen on another device are
+   not re-shown as new. Invalid/non-positive server values are ignored.
+3. **Syncing may POST then GET on every load.** The client POSTs its
+   local `lastVisit` (advancing the server via `max()`) and then GETs;
+   this is safe because rule 2 prevents adopting the just-advanced value.
+   Only the *local* persistent advance happens once per session (rule 1).
+4. A POST that isn't meant to advance lastVisit must omit the field or
+   send `0`.
 
 Sequence that must work (locked by integration test):
 
 ```
-device A: GET            -> lastVisit = L0   (render "new" vs L0)
-device A: POST {lastVisit: now}              (once, after render)
-device A: GET            -> lastVisit = now  (ignored: A already advanced)
-device B: GET            -> lastVisit = now  (B's next session renders vs now)
+device A: boot           -> bootLastVisit = L0 (render "new" vs L0)
+device A: POST {lastVisit: now}                (server advances to now)
+device A: GET            -> lastVisit = now    (not adopted: now > L0)
+device B: next session   -> bootLastVisit from GET = now (renders vs now)
 ```
 
 ## Profile store schema (server-side, additive-only)
