@@ -13,9 +13,9 @@ jobs:
       # Same pinned image as docker-compose.yml — local == CI.
       image: mcr.microsoft.com/playwright:v1.61.1-noble
     env:
-      # Firefox refuses to launch when $HOME isn't owned by the current user;
-      # GH Actions containers set HOME=/github/home (owned by pwuser) while
-      # steps run as root. Playwright's documented workaround.
+      # GitHub Actions sets HOME=/github/home (owned by pwuser), but the job
+      # runs as root; Firefox refuses to launch when $HOME isn't owned by the
+      # current user. Point HOME at root's home so all three engines launch.
       HOME: /root
     steps:
       - name: Install make + python3-venv
