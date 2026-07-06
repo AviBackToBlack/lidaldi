@@ -2,7 +2,7 @@
   import type { Offer } from "../types";
   import { alerts } from "../stores/alerts.svelte";
   import { sync } from "../stores/sync.svelte";
-  import { syncFetch, type AlertMatches } from "../sync/client";
+  import { syncFetch, syncPost, type AlertMatches } from "../sync/client";
   import { groupAlertMatches } from "../logic/alertmatches";
   import { isNew } from "../logic/filters";
   import Card from "./Card.svelte";
@@ -24,6 +24,10 @@
 
   void (async () => {
     if (!sync.code) return;
+    // POST first so local alerts are merged into the profile before the
+    // GET reply (which includes alertMatches) is adopted — a plain GET
+    // would overwrite local alerts the server hasn't seen yet.
+    await syncPost(sync.code, 0, alerts.alerts, alerts.tombstones);
     const data = await syncFetch(sync.code);
     if (data) {
       matches = data.alertMatches ?? {};

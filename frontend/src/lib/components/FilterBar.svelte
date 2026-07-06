@@ -35,6 +35,11 @@
     // External resets (Reset button, Back/Forward) update the box.
     searchValue = filters.search;
   });
+  $effect(() => () => {
+    // Drop a pending debounce on unmount so a stale onSearch can't fire
+    // (and rewrite the URL) after the user navigated away.
+    if (searchTimer !== null) clearTimeout(searchTimer);
+  });
 
   function handleSearchInput(value: string): void {
     searchValue = value;
