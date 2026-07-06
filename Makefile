@@ -12,14 +12,14 @@ VENV_BIN := $(VENV)/bin
 
 setup: $(VENV)/.ok tests/e2e/node_modules/.ok
 
-$(VENV)/.ok:
+$(VENV)/.ok: tests/requirements.txt
 	$(PYTHON) -c 'import sys; assert sys.version_info >= (3, 11), "python3 >= 3.11 required (D3): got %s" % sys.version'
 	$(PYTHON) -m venv $(VENV)
 	$(VENV_BIN)/pip install --quiet --upgrade pip
 	$(VENV_BIN)/pip install --quiet -r tests/requirements.txt
 	touch $@
 
-tests/e2e/node_modules/.ok:
+tests/e2e/node_modules/.ok: tests/e2e/package.json tests/e2e/package-lock.json
 	cd tests/e2e && npm ci
 	touch $@
 
