@@ -66,5 +66,7 @@ test-zap:
 	# :8100), then runs zap-baseline against that origin. Run from a host
 	# with docker compose (not inside the test container). Override the
 	# target with ZAP_TARGET to scan a running instance instead.
+	# Teardown is scoped to the zap-profile services so a running `test`
+	# container (and the compose network) is left untouched.
 	docker compose --profile zap run --rm zap; \
-	status=$$?; docker compose --profile zap down; exit $$status
+	status=$$?; docker compose --profile zap rm -sf zap-target; exit $$status

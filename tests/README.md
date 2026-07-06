@@ -43,11 +43,15 @@ make test
   scenario simulates a distinct client IP per iteration (~6 requests each),
   so no simulated client ever approaches the limit and the load test cannot
   429 spuriously, while the limiter stays on every request's hot path. 429
-  behaviour itself is unit-tested (`tests/unit/test_sync_server.py`).
-- Thresholds (`p(95)<500ms`, `http_req_failed<1%`, `checks>99%`) are sized
-  for the single-process 127.0.0.1 server with huge headroom over observed
-  latencies (~1–5 ms), so they are deterministic in CI — see the comment
-  block in `tests/load/sync_api.js`.
+  behaviour itself is unit-tested by
+  `test_rate_limit_429_once_per_ip_limit_exceeded` in
+  `tests/unit/test_sync_server.py` (the shared server fixture raises
+  `RATE_MAX` for the other tests; that test scopes it back down and
+  asserts 429 fires exactly once the per-IP limit is exceeded).
+- Thresholds (`p(95)<500ms` plus a tighter `med<50ms`, `http_req_failed<1%`,
+  `checks>99%`) are sized for the single-process 127.0.0.1 server with
+  large headroom over observed latencies (~1–5 ms), so they are
+  deterministic in CI — see the comment block in `tests/load/sync_api.js`.
 
 ## CI
 

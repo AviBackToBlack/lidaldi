@@ -19,7 +19,10 @@
 // profile file per request, over 127.0.0.1. Per-request service time is
 // ~1-5 ms; at the shaped ~40-70 req/s this leaves >50x headroom, so
 // p(95)<500ms only fires on pathological serialization (lock convoy,
-// event-loop stall) rather than CI noise. error rate <1% likewise: every
+// event-loop stall) rather than CI noise. med<50ms is the tighter guard:
+// the median is far more stable than the tail on shared CI runners
+// (observed ~1.2 ms, ~40x headroom) and catches a broad slowdown that the
+// loose p95 bound would let through. error rate <1% likewise: every
 // response status in the scenario is deterministic.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
@@ -40,7 +43,7 @@ export const options = {
   },
   thresholds: {
     http_req_failed: ['rate<0.01'],
-    http_req_duration: ['p(95)<500'],
+    http_req_duration: ['p(95)<500', 'med<50'],
     checks: ['rate>0.99'],
   },
 };
