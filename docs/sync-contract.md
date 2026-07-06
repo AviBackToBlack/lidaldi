@@ -75,10 +75,10 @@ device. Correct clients MUST follow these rules:
    and keep `bootLastVisit` = the server's `lastVisit` (or the local stored
    value if newer). "New" = `offer.first_seen > bootLastVisit` for the whole
    session.
-2. **Adopt from the server only if it is older than the boot value is
-   newer.** Concretely: after any GET, the client may lower nothing and
-   adopts a server `lastVisit` **only if the client has not yet advanced
-   this session and the server value is newer than what it read at boot**
+2. **Adopt a server value only if it is newer than the boot value and the
+   client has not advanced yet.** Concretely: after any GET, the client
+   adopts the server `lastVisit` **only if it has not yet advanced this
+   session and the server value is newer than what it read at boot**
    (another device visited later); it must never let a value it advanced
    itself shrink the current session's "new" window.
 3. **Advance once per session.** After rendering with `bootLastVisit`,
