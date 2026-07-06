@@ -52,7 +52,7 @@
 
 | Task | Worker | Session | Status | PR | Verifier |
 |---|---|---|---|---|---|
-| T0 design brief → operator runs Claude Design | orchestrator + operator | — | brief authored (`DESIGN_BRIEF.md`); awaiting exports | — | — |
+| T0 design brief → operator runs Claude Design | orchestrator + operator | — | **done** — exports committed to `frontend/design/` (tokens.css, mockup.html, 404.html, img) | — | — |
 | T1 test harness & CI skeleton | W4 QA/DevX | devin-3c17963f6b0c42009df40dbc007b5b3f | **merged + verified** | [#1](https://github.com/AviBackToBlack/lidaldi/pull/1), [#2](https://github.com/AviBackToBlack/lidaldi/pull/2) (CI fix) | **PASS** (devin-63366bad21f44f0d96103ab408899cae) |
 | T2 stable ids + first_seen + offers.json | W1 Backend | devin-46236a21665148f09c73fedd3e2d2d56 | **merged + verified** | [#3](https://github.com/AviBackToBlack/lidaldi/pull/3), [#4](https://github.com/AviBackToBlack/lidaldi/pull/4) (corrupt-store quarantine follow-up) | **PASS** (devin-c769b51ac7984751bc983bc60f579059); low finding fixed in #4 |
 | T3 aggregate push + ledger | W1 Backend | devin-524c3844e7f24dc096563200a47eb501 | **merged + verified** (operator merged ahead of verdict) | [#6](https://github.com/AviBackToBlack/lidaldi/pull/6) | **PASS** (devin-8d027ed90ac849cb96470858770d50a4) |
@@ -63,7 +63,8 @@
 | T10 installer/updater | W3 DevOps | devin-4e04a904db114eac9d1555e0cd749999 | dispatched | — | — |
 | T11 .prom metrics parity | W1 Backend | devin-0a059fbea9b74929bca3a4b4b9f6ec22 | dispatched | — | — |
 | T13 k6 load + security tiers | W4 QA/DevX | devin-1306aaa475a7474aa4ec6d4d258e6e0f | dispatched | — | — |
-| T6 (blocked on T0 exports), T8 (after T6), T14 (after T10), T15 (after T10) | per DAG | — | pending | — | — |
+| T6 full frontend UI | W2 Frontend | devin-331be1bc188348fea9367b2906fc7e0e | dispatched (T0 exports landed) | — | — |
+| T8 (after T6), T14 (after T10), T15 (after T10) | per DAG | — | pending | — | — |
 
 T7 verifier follow-ups (for T6/T10): push payload icon `/img/lidaldi.png` is not shipped by the frontend build — add it to `frontend/public/img/` (T6); static cache `lidaldi-static-v1` needs a cache-name bump discipline when icons/manifest change on deploy (T10/T14 note).
 
