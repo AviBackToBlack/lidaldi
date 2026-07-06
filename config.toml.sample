@@ -13,7 +13,8 @@
 # Offers processing folder path (scraper feeds, first_seen store, sync dir).
 offers_processing_dir = "/path/to/processing/folder"
 
-# Website root folder path (offers.json, meta.json, index.html live here).
+# Website root folder path (offers.json, meta.json and the frontend build
+# output, including index.html, live here).
 website_root_dir = "/path/to/website/root/folder"
 
 # Prometheus textfile exporter directory. Set to the directory watched by
@@ -42,11 +43,6 @@ website_root_dir = "/path/to/website/root/folder"
 # {"lastUpdated": unix_ts, "vapidPublicKey": ...} for the frontend.
 #offers_json = "<website_root_dir>/offers.json"
 #meta_json = "<website_root_dir>/meta.json"
-# index.html paths
-#index_template = "<website_root_dir>/index.html.tpl"
-#index_html = "<website_root_dir>/index.html"
-#index_new_html = "<website_root_dir>/index.new.html"
-#index_old_html = "<website_root_dir>/index.old.html"
 
 [sync]
 # Sync server bind address and CORS allow-listed origin.

@@ -154,12 +154,6 @@ def _write_inputs(po, aldi_offers, lidl_offers):
     ):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
-    with open(po.config.INDEX_TEMPLATE, "w", encoding="utf-8") as f:
-        f.write(
-            "<script>var offers=%%SPECIAL_OFFERS_DATA%%;"
-            "var meta=%%SPECIAL_OFFERS_META_DATA%%;</script>"
-            '<body data-vapid="%%VAPID_PUBLIC_KEY%%"></body>'
-        )
 
 
 def _catalog(po, extra=None):
@@ -199,10 +193,6 @@ def test_two_run_pipeline(po):
     assert set(meta) == {"lastUpdated", "vapidPublicKey"}
     assert meta["vapidPublicKey"] == "test-vapid-public-key"
 
-    index_html = open(po.config.INDEX_HTML, encoding="utf-8").read()
-    assert '"first_seen"' in index_html
-    assert 'data-vapid="test-vapid-public-key"' in index_html
-
     # Run 2: unchanged catalog -> zero new offers, timestamps unchanged.
     po.main()
     assert _read(po.config.NEW_OFFERS_JSON) == []
@@ -223,6 +213,21 @@ def test_two_run_pipeline(po):
     store3 = po.load_first_seen()
     assert new_offers[0]["first_seen"] == store3["999999"]["first_seen"]
     assert store3["700000"]["first_seen"] == store1["700000"]["first_seen"]
+
+
+def test_data_run_does_not_write_index_html(po, tmp_path):
+    """D2: index.html is owned by the frontend build; a data run must not
+    create or overwrite it in the web root."""
+    webroot = tmp_path / "webroot"
+    index_html = webroot / "index.html"
+    built = "<!doctype html><title>vite build</title>"
+    index_html.write_text(built, encoding="utf-8")
+
+    _catalog(po)
+    po.main()
+
+    assert index_html.read_text(encoding="utf-8") == built
+    assert set(os.listdir(webroot)) == {"index.html", "offers.json", "meta.json"}
 
 
 def test_slug_change_end_to_end(po):
