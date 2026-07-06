@@ -130,12 +130,14 @@ self.addEventListener("notificationclick", (event) => {
       for (const client of windows) {
         if (new URL(client.url).origin === self.location.origin) {
           try {
-            await client.focus();
-            await client.navigate(url);
+            // navigate() first: it may reject for uncontrolled clients, and
+            // focusing before a failed navigation would leave a focused but
+            // unchanged window plus a duplicate from openWindow.
+            const navigated = await client.navigate(url);
+            await (navigated ?? client).focus();
             return;
           } catch {
-            // e.g. navigate() may reject for uncontrolled clients —
-            // fall through to openWindow.
+            // Fall through to openWindow.
           }
         }
       }
