@@ -13,10 +13,14 @@ export interface Tombstone {
   at: number;
 }
 
+/** alert id → matched offers; written only by the server (T3 contract). */
+export type AlertMatches = Record<string, { id: string; at: number }[]>;
+
 export interface SyncData {
   lastVisit?: number;
   alerts?: Alert[];
   tombstones?: Tombstone[];
+  alertMatches?: AlertMatches;
 }
 
 export interface SyncPostBody {
