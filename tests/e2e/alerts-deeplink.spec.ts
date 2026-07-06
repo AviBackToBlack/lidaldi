@@ -59,7 +59,7 @@ test('deep link restores AlertsView with matches and highlight', async ({ page }
 
 test('back link returns to the grid and Back restores the view (history)', async ({ page }) => {
   await page.goto(BASE + '/?view=alerts&alert=alrt0001');
-  await page.getByRole('button', { name: '← All offers' }).click();
+  await page.getByRole('button', { name: 'All offers' }).click();
   await expect(page.locator('.product-card').first()).toBeVisible();
   await expect(page).toHaveURL(BASE + '/');
   await page.goBack();

@@ -35,7 +35,7 @@ test('arrow paging survives filter clicks (Bug #3)', async ({ page }) => {
   await expect(pageIndicator(page)).toHaveText(/^page 2 of/);
 
   // Also after using the pager itself.
-  await page.getByRole('button', { name: 'Next ›' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
   await expect(pageIndicator(page)).toHaveText(/^page 3 of/);
   await page.keyboard.press('ArrowLeft');
   await expect(pageIndicator(page)).toHaveText(/^page 2 of/);
@@ -62,4 +62,40 @@ test('windowed pager stays bounded (N9)', async ({ page }) => {
   const buttons = page.locator('.pagination .page-number-btn');
   expect(await buttons.count()).toBeLessThanOrEqual(5);
   await expect(page.locator('.pagination .ellipsis')).toHaveCount(1);
+});
+
+test('modified arrows never page (screen-reader shortcuts)', async ({ page }) => {
+  await page.keyboard.press('Control+ArrowRight');
+  await page.keyboard.press('Alt+ArrowRight');
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(pageIndicator(page)).toHaveText(/^page 1 of/);
+});
+
+test('card popover opens on focus and Escape dismisses it (WCAG 1.4.13)', async ({ page }) => {
+  await page.locator('.card-link').first().focus();
+  await expect(page.locator('.desc-popover:popover-open')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.desc-popover:popover-open')).toHaveCount(0);
+});
+
+test('alerts modal traps focus and restores it to the opener', async ({ page }) => {
+  const opener = page.getByRole('button', { name: 'Alerts', exact: true });
+  await opener.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeFocused();
+
+  // Tab through every focusable control: focus must stay inside the dialog.
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press('Tab');
+    const inside = await page.evaluate(() => {
+      const d = document.querySelector('[role="dialog"]');
+      return d ? d.contains(document.activeElement) : false;
+    });
+    expect(inside).toBe(true);
+  }
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(opener).toBeFocused();
 });

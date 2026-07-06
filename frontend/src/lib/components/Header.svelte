@@ -77,20 +77,25 @@
     margin-top: 7px;
     font-size: var(--text-base);
     font-weight: var(--weight-medium);
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .meta-row b {
     color: var(--text);
     font-weight: var(--weight-bold);
   }
+  /* WCAG contrast: --accent on --accent-tint is 3.42:1; the darker
+     --accent-active passes in light, --accent-text in dark. */
   .offer-count {
     font-size: var(--text-base);
     font-weight: var(--weight-bold);
-    color: var(--accent);
+    color: var(--accent-active);
     background: var(--accent-tint);
     padding: 9px 15px;
     border-radius: var(--radius);
     white-space: nowrap;
+  }
+  :global([data-theme="dark"]) .offer-count {
+    color: var(--accent-text);
   }
   .theme-toggle {
     border: 1px solid var(--border-strong);

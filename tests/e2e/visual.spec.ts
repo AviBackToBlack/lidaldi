@@ -32,7 +32,7 @@ test('filter bar with active store + availability filters', async ({ page }) => 
 });
 
 test('alerts modal', async ({ page }) => {
-  await page.getByRole('button', { name: '🔔 Alerts' }).click();
+  await page.getByRole('button', { name: 'Alerts', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveScreenshot('alerts-modal.png', {
     animations: 'disabled',
   });

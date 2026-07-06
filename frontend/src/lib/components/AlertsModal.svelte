@@ -151,6 +151,38 @@
   function onOverlayClick(e: MouseEvent): void {
     if (e.target === e.currentTarget) onClose();
   }
+
+  // Focus management: move focus into the dialog on open, keep Tab cycling
+  // inside it, and restore focus to the opener on close.
+  let modalEl = $state<HTMLElement | null>(null);
+
+  $effect(() => {
+    const opener = document.activeElement;
+    modalEl?.focus();
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  });
+
+  function trapTab(e: KeyboardEvent): void {
+    if (e.key !== "Tab" || !modalEl) return;
+    const focusables = Array.from(
+      modalEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      )
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || active === modalEl)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -161,17 +193,24 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="alerts-title"
+    tabindex="-1"
+    bind:this={modalEl}
+    onkeydown={trapTab}
   >
     <div class="modal-header">
-      <h2 id="alerts-title">🔔 Alerts &amp; Sync</h2>
-      <button class="modal-close" aria-label="Close" onclick={onClose}>✕</button>
+      <h2 id="alerts-title"><span aria-hidden="true">🔔</span> Alerts &amp; Sync</h2>
+      <button class="modal-close" aria-label="Close" onclick={onClose}
+        ><span aria-hidden="true">✕</span></button
+      >
     </div>
     <div class="modal-body">
       <h3>Sync across devices</h3>
       {#if sync.code}
         <div class="sync-row">
           <div class="sync-code-value">{sync.code}</div>
-          <button class="btn-ink" onclick={copyCode}>{copied ? "Copied" : "Copy"}</button>
+          <button class="btn-ink" aria-live="polite" onclick={copyCode}
+            >{copied ? "Copied" : "Copy"}</button
+          >
           <button class="btn-ink" onclick={disconnect}>Disconnect</button>
         </div>
       {:else}
@@ -190,7 +229,7 @@
           >
         </div>
       {/if}
-      {#if syncMessage}<p class="form-message">{syncMessage}</p>{/if}
+      <p class="form-message" role="status" class:sr-hide={!syncMessage}>{syncMessage}</p>
 
       {#if isPushSupported()}
         <div class="push-row">
@@ -207,7 +246,7 @@
             onclick={togglePush}
           ></button>
         </div>
-        {#if pushMessage}<p class="form-message">{pushMessage}</p>{/if}
+        <p class="form-message" role="status" class:sr-hide={!pushMessage}>{pushMessage}</p>
       {/if}
 
       <h3>Keyword alerts</h3>
@@ -217,8 +256,9 @@
             >{alert.keyword}
             <em>({MATCH_TYPE_LABELS[alert.matchType]})</em>
             <button
-              aria-label={`Remove ${alert.keyword}`}
-              onclick={() => removeAlert(alert.id)}>✕</button
+              aria-label={`Remove ${alert.keyword} alert`}
+              onclick={() => removeAlert(alert.id)}
+              ><span aria-hidden="true">✕</span></button
             ></span
           >
         {:else}
@@ -289,7 +329,7 @@
     border-radius: 9px;
     border: none;
     background: var(--surface-sunken);
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: 15px;
     line-height: 1;
   }
@@ -305,7 +345,7 @@
     font-weight: var(--weight-bold);
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .sync-row {
     display: flex;
@@ -351,6 +391,13 @@
     font-weight: var(--weight-medium);
     color: var(--accent-text);
   }
+  /* Empty live regions stay in the DOM (so announcements work) but take
+     no space. */
+  .form-message.sr-hide {
+    margin: 0;
+    height: 0;
+    overflow: hidden;
+  }
   .push-row {
     display: flex;
     align-items: center;
@@ -369,7 +416,7 @@
   .push-row .d {
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);
-    color: var(--text-3);
+    color: var(--text-2);
     margin-top: 2px;
   }
   .switch {
@@ -423,14 +470,17 @@
     font-style: normal;
     font-size: var(--text-xs);
     font-weight: var(--weight-medium);
-    color: var(--text-3);
+    color: var(--text-2);
   }
+  /* Padding + negative margin keeps the visual footprint while growing
+     the touch target to ~26px. */
   .keyword-chip button {
     border: none;
     background: none;
-    color: var(--text-faint);
+    color: var(--text-2);
     font-size: 12px;
-    padding: 2px;
+    padding: 6px;
+    margin: -4px;
   }
   .keyword-chip button:hover {
     color: var(--lidl-text);
@@ -438,7 +488,7 @@
   .no-alerts {
     font-size: var(--text-base);
     font-weight: var(--weight-medium);
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .add-alert-form {
     display: flex;

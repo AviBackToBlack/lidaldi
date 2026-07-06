@@ -43,16 +43,24 @@
 
   const groups = $derived(groupAlertMatches(alerts.alerts, matches, offers));
 
+  // Deep-link target: scroll it into view and move focus there so
+  // keyboard/screen-reader users land on the highlighted group.
   function highlightTarget(el: HTMLElement, isTarget: boolean): void {
-    if (isTarget) el.scrollIntoView({ block: "start" });
+    if (!isTarget) return;
+    el.scrollIntoView({ block: "start" });
+    el.focus({ preventScroll: true });
   }
 </script>
 
 <section class="alerts-view">
   <div class="alerts-view-bar">
-    <button class="chip" onclick={onBack}>← All offers</button>
+    <button class="chip" onclick={onBack}
+      ><span aria-hidden="true">←</span> All offers</button
+    >
     <h2>Alert matches</h2>
-    <button class="btn-dark" onclick={onOpenAlerts}>🔔 Manage alerts</button>
+    <button class="btn-dark" onclick={onOpenAlerts}
+      ><span aria-hidden="true">🔔</span> Manage alerts</button
+    >
   </div>
 
   {#if !sync.code}
@@ -71,11 +79,16 @@
     <p class="status">No keyword alerts yet — add one under “Manage alerts”.</p>
   {:else}
     {#each groups as group (group.alert.id)}
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+      <!-- tabindex="-1" only: programmatic focus target for the deep link,
+           never in the Tab order. -->
       <article
         class="alert-group"
         class:highlight={group.alert.id === alertId}
         use:highlightTarget={group.alert.id === alertId}
         data-alert-id={group.alert.id}
+        tabindex={group.alert.id === alertId ? -1 : undefined}
+        aria-label={`Alert matches for ${group.alert.keyword}`}
       >
         <h3>
           <span class="kw">{group.alert.keyword}</span>
@@ -145,7 +158,7 @@
     font-weight: var(--weight-bold);
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--text-3);
+    color: var(--text-2);
     background: var(--surface-sunken);
     padding: 3px 8px;
     border-radius: var(--radius-sm);
@@ -153,7 +166,7 @@
   .alert-group .count {
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
-    color: var(--text-3);
+    color: var(--text-2);
   }
 
   .products-grid {
