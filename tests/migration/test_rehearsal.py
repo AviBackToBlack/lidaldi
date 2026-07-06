@@ -95,10 +95,6 @@ def test_frontend_dist_served_at_web_root(cutover):
         assert web[rel] == (dist / rel).read_bytes()
 
 
-@pytest.mark.xfail(
-    reason="T6 follow-up (PROGRESS.md): push icon /img/lidaldi.png is not "
-    "yet shipped by the frontend build", strict=False,
-)
 def test_push_icon_shipped_at_web_root(cutover):
     v = cutover["vps"]
     assert (v["WEB_ROOT"] / "img" / "lidaldi.png").is_file()

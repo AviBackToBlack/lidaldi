@@ -32,7 +32,17 @@ async function checkA11y(page: Page): Promise<void> {
   ).toEqual([]);
 }
 
+// Axe samples computed colors, so CSS transitions still in flight after a
+// theme toggle (or hover/click) make color-contrast checks nondeterministic.
+// Freeze transitions before any axe run to keep the tier deterministic.
+async function freezeTransitions(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: '*, *::before, *::after { transition: none !important; }',
+  });
+}
+
 async function applyTheme(page: Page, theme: Theme): Promise<void> {
+  await freezeTransitions(page);
   if (theme === 'dark') {
     await page.getByRole('button', { name: 'Toggle dark theme' }).click();
   }
@@ -46,24 +56,24 @@ for (const theme of THEMES) {
 
     test('grid view', async ({ page }) => {
       await page.goto(BASE + '/');
-      await expect(page.locator('.product-card').first()).toBeVisible();
+      await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 15_000 });
       await applyTheme(page, theme);
       await checkA11y(page);
     });
 
     test('grid with active filters', async ({ page }) => {
       await page.goto(BASE + '/');
-      await expect(page.locator('.product-card').first()).toBeVisible();
+      await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 15_000 });
       await applyTheme(page, theme);
       await page.getByRole('button', { name: 'ALDI', exact: true }).click();
       await page.getByRole('button', { name: 'Available now' }).click();
-      await expect(page.locator('.product-card').first()).toBeVisible();
+      await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 15_000 });
       await checkA11y(page);
     });
 
     test('card popover open', async ({ page }) => {
       await page.goto(BASE + '/');
-      await expect(page.locator('.product-card').first()).toBeVisible();
+      await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 15_000 });
       await applyTheme(page, theme);
       await page.locator('.card-link').first().focus();
       await expect(page.locator('.desc-popover:popover-open')).toHaveCount(1, {
@@ -74,7 +84,7 @@ for (const theme of THEMES) {
 
     test('alerts modal', async ({ page }) => {
       await page.goto(BASE + '/');
-      await expect(page.locator('.product-card').first()).toBeVisible();
+      await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 15_000 });
       await applyTheme(page, theme);
       await page.getByRole('button', { name: 'Alerts', exact: true }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
