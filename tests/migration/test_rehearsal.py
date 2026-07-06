@@ -162,12 +162,9 @@ def test_offers_and_meta_generated_and_served(cutover):
     assert isinstance(meta["lastUpdated"], int)
 
 
-@pytest.mark.xfail(
-    reason="Finding F2: process_offers.py still renders index.html from the "
-    "legacy template on every data run, clobbering the Vite-built "
-    "index.html deployed by update.sh (D2 incomplete)", strict=True,
-)
 def test_built_index_html_survives_data_runs(cutover):
+    # D2 complete: index.html is owned by the frontend build; data runs
+    # must leave the deployed file byte-identical.
     dist_index = cutover["post_apply_webroot"]["index.html"]
     assert cutover["post_process_webroot_index"] == dist_index
 
