@@ -69,6 +69,22 @@ def _toml_sections(text):
     return sections
 
 
+def _commented_toml_keys(text):
+    """Set of dotted keys shown as commented optional fields in the sample."""
+    known = set()
+    current = ""
+    for line in text.splitlines():
+        m = _SECTION_RE.match(line)
+        if m:
+            current = m.group("name").strip()
+            continue
+        k = re.match(r"^\s*#\s*(?P<key>[A-Za-z0-9_-]+|\"[^\"]+\")\s*=", line)
+        if k:
+            key = k.group("key").strip('"')
+            known.add(f"{current}.{key}" if current else key)
+    return known
+
+
 def _write_atomic(path, text):
     directory = os.path.dirname(os.path.abspath(path))
     fd, tmp = tempfile.mkstemp(dir=directory, prefix=".merge_config.")
@@ -91,21 +107,22 @@ def merge_toml(sample_path, live_path, dry_run):
 
     sample_flat = _flatten(sample)
     live_flat = _flatten(live)
+    with open(sample_path, encoding="utf-8") as fh:
+        sample_text = fh.read()
+    sample_known = set(sample_flat) | _commented_toml_keys(sample_text)
 
     for dotted in sorted(live_flat):
         leaf = dotted.rsplit(".", 1)[-1]
         if _SECRETY.search(leaf):
             print(f"WARN secret-looking key in TOML (move to .env): {dotted}")
 
-    for dotted in sorted(set(live_flat) - set(sample_flat)):
+    for dotted in sorted(set(live_flat) - sample_known):
         print(f"REVIEW live key absent from sample (removed/renamed?): {dotted}")
 
     missing = sorted(set(sample_flat) - set(live_flat))
     if not missing:
         return 0
 
-    with open(sample_path, encoding="utf-8") as fh:
-        sample_text = fh.read()
     with open(live_path, encoding="utf-8") as fh:
         live_text = fh.read()
 
@@ -160,10 +177,13 @@ def merge_toml(sample_path, live_path, dry_run):
     return 3
 
 
-def _env_keys(text):
+def _env_keys(text, include_commented=False):
     keys = {}
     for line in text.splitlines():
-        m = _ENV_KEY_RE.match(line)
+        candidate = line
+        if include_commented:
+            candidate = re.sub(r"^\s*#\s*", "", line, count=1)
+        m = _ENV_KEY_RE.match(candidate)
         if m:
             keys[m.group("key")] = line
     return keys
@@ -176,9 +196,10 @@ def merge_env(sample_path, live_path, dry_run):
         live_text = fh.read()
 
     sample_keys = _env_keys(sample_text)
+    sample_known = set(_env_keys(sample_text, include_commented=True))
     live_keys = _env_keys(live_text)
 
-    for key in sorted(set(live_keys) - set(sample_keys)):
+    for key in sorted(set(live_keys) - sample_known):
         print(f"REVIEW live key absent from sample (removed/renamed?): {key}")
 
     missing = [k for k in sample_keys if k not in live_keys]

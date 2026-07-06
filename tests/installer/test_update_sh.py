@@ -210,6 +210,28 @@ def test_removed_key_reported_for_review(sandbox):
     assert 'old_key = "v"' in live_toml.read_text()
 
 
+def test_commented_optional_sample_keys_are_not_review_noise(sandbox):
+    run_update(sandbox)
+    live_toml = sandbox["APP_ROOT"] / "config.toml"
+    live_toml.write_text(
+        live_toml.read_text().replace(
+            "download_delay = 3",
+            'download_delay = 3\nscraping_report_dir = "/tmp/reports"',
+        )
+    )
+    live_env = sandbox["APP_ROOT"] / ".env"
+    vapid = sandbox["APP_ROOT"] / "data" / "vapid_private.pem"
+    vapid.parent.mkdir(parents=True, exist_ok=True)
+    vapid.write_text("FAKE PEM\n")
+    live_env.write_text(live_env.read_text() + f"VAPID_PRIVATE_KEY_PATH={vapid}\n")
+
+    proc = run_update(sandbox)
+    assert "REVIEW live key absent from sample (removed/renamed?): scraper.scraping_report_dir" not in proc.stdout
+    assert "REVIEW live key absent from sample (removed/renamed?): VAPID_PRIVATE_KEY_PATH" not in proc.stdout
+    assert f"VAPID private key present ({vapid})" in proc.stdout
+    assert "WARN  no VAPID private key" not in proc.stdout
+
+
 def test_synctree_never_overwrites_live_config_or_keys(sandbox):
     run_update(sandbox)
     app_op = sandbox["APP_ROOT"] / "offers_processing"

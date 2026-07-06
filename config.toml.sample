@@ -3,7 +3,7 @@
 # Copy to `config.toml` next to this file (repo root) or into
 # offers_processing/, and edit. Secrets (Telegram token/chat id, VAPID
 # private key path) do NOT belong here — put them in `.env` (see
-# .env.sample). Requires Python >= 3.11 (stdlib tomllib).
+# .env.sample). Requires Python >= 3.12.
 #
 # The loader (offers_processing/config_loader.py) prefers config.toml; a
 # legacy offers_processing/config.py still works during migration but
@@ -53,7 +53,7 @@ allowed_origin = "https://your-website-url"
 
 [push]
 # VAPID keys for Web Push notifications.
-# Generate with:  python generate_vapid_keys.py /path/to/processing/folder
+# Generate with:  PYENV_VERSION=lidaldi python generate_vapid_keys.py /path/to/processing/folder
 # The PRIVATE key path is a secret and lives in .env
 # (VAPID_PRIVATE_KEY_PATH); only the public key belongs here.
 vapid_public_key = "your-vapid-public-key-base64url"

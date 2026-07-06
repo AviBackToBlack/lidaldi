@@ -50,7 +50,7 @@ SYNC_ALLOWED_ORIGIN = "https://your-website-url"
 
 # ---------------------------------------------------------------------------
 # VAPID keys for Web Push notifications
-# Generate with:  python generate_vapid_keys.py /path/to/processing/folder
+# Generate with:  PYENV_VERSION=lidaldi python generate_vapid_keys.py /path/to/processing/folder
 #
 # SECURITY: the private key is a long-lived signing credential. After
 # generation, lock it down:

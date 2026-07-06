@@ -364,7 +364,28 @@ step_config toml "$REPO_DIR/config.toml.sample" "$LIVE_TOML" 0640
 step_config env  "$REPO_DIR/.env.sample"        "$LIVE_ENV"  0600
 
 # 8. VAPID keypair: reused verbatim — never generated, moved or rewritten.
-VAPID_PRIVATE="${VAPID_PRIVATE_KEY_PATH:-$APP_ROOT/offers_processing/vapid_private.pem}"
+env_file_value() { # env_file_value <file> <key>
+    local file="$1" key="$2" line value
+    [ -f "$file" ] || return 1
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*= ]]; then
+            value="${line#*=}"
+            value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            if [[ "$value" =~ ^\".*\"$ ]] || [[ "$value" =~ ^\'.*\'$ ]]; then
+                value="${value:1:${#value}-2}"
+            fi
+            printf '%s\n' "$value"
+            return 0
+        fi
+    done < "$file"
+    return 1
+}
+
+VAPID_PRIVATE="${VAPID_PRIVATE_KEY_PATH:-}"
+if [ -z "$VAPID_PRIVATE" ]; then
+    VAPID_PRIVATE="$(env_file_value "$LIVE_ENV" VAPID_PRIVATE_KEY_PATH || true)"
+fi
+VAPID_PRIVATE="${VAPID_PRIVATE:-$APP_ROOT/offers_processing/vapid_private.pem}"
 if [ -f "$VAPID_PRIVATE" ]; then
     ok "VAPID private key present ($VAPID_PRIVATE) — reused verbatim, never touched"
 else
