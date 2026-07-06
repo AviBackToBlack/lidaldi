@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#d9542f">
+<title>Page not found — LIDALDI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #f7f5f1; color: #2a2822;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  .logo { width: 48px; height: 48px; border-radius: 12px; margin-bottom: 26px; }
+  .code { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 22px; }
+  .code .digit { font-size: 88px; line-height: 1; font-weight: 800; letter-spacing: -.04em; color: #1f2430; }
+  .no-entry {
+    width: 78px; height: 78px; border-radius: 50%; background: #d9542f;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 24px -8px rgba(217, 84, 47, .55);
+  }
+  .no-entry span { width: 44px; height: 12px; border-radius: 6px; background: #fff; }
+  h1 { margin: 0 0 9px; font-size: 20px; font-weight: 800; }
+  p { margin: 0 auto 24px; max-width: 340px; font-size: 14px; line-height: 1.6; font-weight: 500; color: #8a857c; }
+  a.btn {
+    display: inline-block; padding: 13px 22px; border-radius: 12px;
+    background: #d9542f; color: #fff; font-size: 14px; font-weight: 700; text-decoration: none;
+    box-shadow: 0 6px 16px -6px rgba(217, 84, 47, .5);
+    transition: background .15s ease;
+  }
+  a.btn:hover { background: #c0451f; }
+  a.btn:focus-visible { outline: none; box-shadow: 0 0 0 2px #f7f5f1, 0 0 0 4px #1f2430; }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) { background: #16181d; color: #ecebe7; }
+    body:not([data-theme="light"]) .code .digit { color: #f2f1ee; }
+    body:not([data-theme="light"]) p { color: #8b8f99; }
+    body:not([data-theme="light"]) a.btn:focus-visible { box-shadow: 0 0 0 2px #16181d, 0 0 0 4px #f2f1ee; }
+  }
+  body[data-theme="dark"] { background: #16181d; color: #ecebe7; }
+  body[data-theme="dark"] .code .digit { color: #f2f1ee; }
+  body[data-theme="dark"] p { color: #8b8f99; }
+  body[data-theme="dark"] a.btn:focus-visible { box-shadow: 0 0 0 2px #16181d, 0 0 0 4px #f2f1ee; }
+</style>
+<script>
+  // Honor the theme cookie set on the main page.
+  (function () {
+    var m = document.cookie.match(/(?:^|;\s*)lidaldi_theme=(light|dark)/);
+    if (m) document.addEventListener('DOMContentLoaded', function () { document.body.dataset.theme = m[1]; });
+  })();
+</script>
+</head>
+<body>
+  <main>
+    <img class="logo" src="/img/lidaldi.png" alt="LIDALDI mascot">
+    <div class="code" aria-label="Error 404">
+      <span class="digit">4</span>
+      <span class="no-entry" role="img" aria-label="No entry"><span></span></span>
+      <span class="digit">4</span>
+    </div>
+    <h1>This aisle is off-limits</h1>
+    <p>Oops! You've wandered into a restricted aisle. Let's get you back to the specials.</p>
+    <a class="btn" href="/">← Back to the specials</a>
+  </main>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#d9542f">
+<title>LIDALDI — mockup (main page + alerts modal)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<script>
+  // Apply saved theme before first paint to avoid a flash.
+  // Cookie (1 yr) so a static server could also read it; falls back to OS preference.
+  (function () {
+    var m = document.cookie.match(/(?:^|;\s*)lidaldi_theme=(light|dark)/);
+    var theme = m ? m[1]
+      : (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 26px 30px 40px;
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: var(--font-sans); cursor: pointer; white-space: nowrap; }
+  :focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+  .logo { width: 56px; height: 56px; border-radius: 14px; flex: none; }
+  .header-info { flex: 1; }
+  h1 { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-heavy); letter-spacing: -.02em; color: var(--ink); }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 7px; font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--text-3); }
+  .meta-row b { color: var(--text); font-weight: var(--weight-bold); }
+  .offer-count { font-size: var(--text-base); font-weight: var(--weight-bold); color: var(--accent); background: var(--accent-tint); padding: 9px 15px; border-radius: var(--radius); white-space: nowrap; }
+  .theme-toggle { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); border-radius: var(--radius); padding: 9px 13px; font-size: var(--text-base); font-weight: var(--weight-semibold); }
+
+  /* ---------- filter bar ---------- */
+  .filters-row {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; box-shadow: var(--shadow-card);
+  }
+  .chip {
+    padding: 9px 15px; border-radius: var(--radius); border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-2); font-size: var(--text-base); font-weight: var(--weight-semibold);
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+  }
+  .chip:hover { background: var(--surface-hover); border-color: var(--border-hover); color: var(--text); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.active:hover { background: var(--accent-hover); }
+  .chip.date { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-3); }
+  .chip.date.active { color: #fff; }
+
+  .segmented { display: inline-flex; gap: 3px; background: var(--surface-sunken); padding: 4px; border-radius: var(--radius-md); }
+  .segmented button { border: none; background: transparent; color: var(--text-2); font-size: var(--text-base); font-weight: var(--weight-semibold); padding: 8px 17px; border-radius: 9px; transition: all var(--transition); }
+  .segmented button[aria-pressed="true"] { font-weight: var(--weight-bold); background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .segmented button.seg-aldi[aria-pressed="true"] { background: var(--aldi-tint); color: var(--aldi); }
+  .segmented button.seg-lidl[aria-pressed="true"] { background: var(--lidl-tint); color: var(--lidl-text); }
+  .divider { width: 1px; height: 26px; background: var(--border); }
+  .spacer { flex: 1; }
+
+  .select-wrapper { position: relative; display: inline-block; }
+  .select-wrapper select {
+    appearance: none; font-family: var(--font-sans); font-size: var(--text-base); font-weight: var(--weight-semibold);
+    color: var(--text-2); background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: var(--radius); padding: 9px 30px 9px 13px; cursor: pointer;
+  }
+  .select-wrapper::after { content: "▾"; position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none; color: var(--text-faint); font-size: 11px; }
+  .select-wrapper select:hover { border-color: var(--border-hover); color: var(--text); }
+
+  .price-range { display: flex; align-items: center; gap: 5px; color: var(--border-hover); }
+  .filters-row input[type="text"], .filters-row input[type="number"] {
+    font-family: var(--font-sans); font-size: var(--text-base); font-weight: var(--weight-medium);
+    color: var(--text); background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: var(--radius); padding: 9px 12px;
+  }
+  .filters-row input::placeholder { color: var(--text-faint); }
+  .price-input { width: 78px; }
+  .search-input { min-width: 180px; }
+  .btn-dark { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: var(--radius); border: none; background: var(--ink); color: var(--bg); font-size: var(--text-base); font-weight: var(--weight-semibold); }
+  .btn-dark:hover { opacity: .88; }
+
+  /* ---------- grid ---------- */
+  .grid-meta { display: flex; justify-content: space-between; align-items: center; margin: 20px 2px 14px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--text-3); }
+  .grid-meta .page-ind { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-faint); }
+  .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); gap: 18px; }
+
+  .product-card {
+    position: relative; display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: var(--card-border-accent) solid var(--store, var(--border));
+    border-radius: var(--radius-lg); padding: 14px; box-shadow: var(--shadow-card);
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  }
+  .product-card:hover, .product-card:focus-within { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: var(--border-hover); border-left-color: var(--store); }
+  .product-card.aldi { --store: var(--aldi); --store-text: var(--aldi); --store-tint: var(--aldi-tint); }
+  .product-card.lidl { --store: var(--lidl); --store-text: var(--lidl-text); --store-tint: var(--lidl-tint); }
+
+  .store-badge { align-self: flex-start; font-size: 10px; font-weight: var(--weight-bold); letter-spacing: .06em; color: var(--store-text); background: var(--store-tint); padding: 4px 9px; border-radius: var(--radius-sm); margin-bottom: 12px; }
+  .new-badge { position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: var(--weight-bold); letter-spacing: .05em; color: #fff; background: var(--accent); padding: 4px 8px; border-radius: var(--radius-sm); box-shadow: 0 2px 6px rgba(217,84,47,.4); }
+
+  .product-image { height: 148px; border-radius: var(--radius); background: var(--surface-sunken); display: flex; align-items: center; justify-content: center; margin-bottom: 13px; overflow: hidden; }
+  .product-image img { max-width: 100%; max-height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+  [data-theme="dark"] .product-image img { mix-blend-mode: normal; border-radius: var(--radius-sm); }
+  .product-image .ph { font-family: var(--font-mono); font-size: 10px; font-weight: var(--weight-semibold); letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+
+  .product-title { font-size: var(--text-md); line-height: 1.32; font-weight: var(--weight-bold); color: var(--text); min-height: 37px; margin-bottom: 12px; }
+  .product-info { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto; }
+  .availability { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-3); white-space: nowrap; }
+  .price { font-size: var(--text-price); line-height: 1; font-weight: var(--weight-heavy); color: var(--accent-text); background: var(--accent-tint); padding: 7px 11px; border-radius: var(--radius); white-space: nowrap; flex: none; }
+  .price.unknown { font-size: var(--text-xs); font-weight: var(--weight-bold); color: var(--text-3); background: var(--surface-sunken); border: 1px dashed var(--border-hover); padding: 6px 10px; }
+
+  .desc-tooltip {
+    display: none; position: absolute; z-index: 5; left: 24px; right: -12px; top: -10px;
+    background: var(--ink); color: var(--bg); border-radius: 13px; padding: 14px 15px; box-shadow: var(--shadow-popover);
+    font-size: 12.5px; line-height: 1.5; font-weight: var(--weight-medium);
+  }
+  .desc-tooltip b { display: block; color: var(--accent-text); font-size: var(--text-xs); letter-spacing: .05em; margin-bottom: 6px; }
+  [data-theme="dark"] .desc-tooltip { background: #000; color: var(--text-2); }
+  .product-card:hover .desc-tooltip, .product-card:focus-within .desc-tooltip { display: block; animation: pop .18s ease .4s backwards; }
+  @keyframes pop { from { opacity: 0; transform: translateY(4px); } }
+
+  /* ---------- pagination ---------- */
+  .pagination { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 28px; }
+  .pagination button { border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-size: var(--text-base); font-weight: var(--weight-semibold); padding: 9px 15px; transition: background var(--transition); }
+  .pagination button:hover { background: var(--surface-hover); border-color: var(--border-hover); }
+  .pagination .page-number-btn { width: 38px; height: 38px; padding: 0; }
+  .pagination .active-page { background: var(--ink); border-color: var(--ink); color: var(--bg); font-weight: var(--weight-bold); }
+  .pagination .ellipsis { color: var(--text-faint); padding: 0 4px; }
+  .pagination [disabled] { color: var(--text-faint); cursor: default; }
+
+  footer { margin-top: 36px; text-align: center; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--text-3); line-height: 1.6; }
+  footer a { color: var(--accent-text); font-weight: var(--weight-semibold); text-decoration: none; border-bottom: 1px solid var(--accent-tint); }
+  footer a:hover { border-bottom-color: var(--accent-text); }
+
+  /* ---------- alerts modal ---------- */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(20, 16, 12, .45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
+  .modal-overlay[hidden] { display: none; }
+  .modal-content { background: var(--surface); border-radius: var(--radius-xl); border: 1px solid var(--border); box-shadow: var(--shadow-modal); width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px; border-bottom: 1px solid var(--border); }
+  .modal-header h2 { margin: 0; display: flex; align-items: center; gap: 11px; font-size: var(--text-lg); font-weight: var(--weight-heavy); color: var(--ink); white-space: nowrap; }
+  .modal-close { width: 30px; height: 30px; border-radius: 9px; border: none; background: var(--surface-sunken); color: var(--text-3); font-size: 15px; line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 22px; }
+  .modal-body h3 { margin: 0 0 10px; font-size: var(--text-sm); font-weight: var(--weight-bold); letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
+  .sync-row { display: flex; gap: 9px; margin-bottom: 22px; }
+  .sync-code-value { flex: 1; padding: 12px 14px; border-radius: var(--radius-md); background: var(--bg); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 16px; font-weight: var(--weight-bold); letter-spacing: .15em; color: var(--text); }
+  .btn-primary { border: none; border-radius: var(--radius-md); background: var(--accent); color: #fff; font-size: var(--text-base); font-weight: var(--weight-semibold); padding: 0 18px; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-ink { border: none; border-radius: var(--radius-md); background: var(--ink); color: var(--bg); font-size: var(--text-base); font-weight: var(--weight-semibold); padding: 0 16px; }
+  .push-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 15px; border-radius: 13px; background: var(--accent-tint); margin-bottom: 22px; }
+  .push-row .t { font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--text); }
+  .push-row .d { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--text-3); margin-top: 2px; }
+  .switch { width: 46px; height: 27px; border-radius: 14px; background: var(--accent); border: none; position: relative; flex: none; transition: background var(--transition); }
+  .switch::after { content: ""; position: absolute; top: 3px; right: 3px; width: 21px; height: 21px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform var(--transition); }
+  .switch[aria-checked="false"] { background: var(--border-hover); }
+  .switch[aria-checked="false"]::after { transform: translateX(-19px); }
+  .keyword-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .keyword-chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 8px 7px 13px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--text); white-space: nowrap; }
+  .keyword-chip button { border: none; background: none; color: var(--text-faint); font-size: 12px; padding: 2px; }
+  .keyword-chip button:hover { color: var(--lidl-text); }
+  .add-alert-form { display: flex; gap: 9px; }
+  .add-alert-form input { flex: 1; font-family: var(--font-sans); font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 11px 14px; }
+  .add-alert-form input::placeholder { color: var(--text-faint); }
+
+  /* ---------- mobile ---------- */
+  @media (max-width: 720px) {
+    body { padding: 14px 16px 30px; }
+    .logo { width: 44px; height: 44px; }
+    h1 { font-size: 17px; }
+    .offer-count { display: none; }
+    .filters-row { padding: 10px; }
+    .segmented { width: 100%; }
+    .segmented button { flex: 1; }
+    .search-input { min-width: 0; flex: 1; }
+    .divider, .spacer { display: none; }
+    .products-grid { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 12px; }
+    .product-image { height: 110px; }
+    .product-title { font-size: 12px; min-height: 32px; }
+    .price { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <img class="logo" src="img/lidaldi.png" alt="LIDALDI mascot">
+  <div class="header-info">
+    <h1>ALDI.IE &amp; LIDL.IE Special Offers</h1>
+    <div class="meta-row">
+      <span class="page-last-updated">Last updated <b>05/07/2026</b></span>
+      <span class="last-visit-info">Your last visit <b>28/06/2026</b></span>
+    </div>
+  </div>
+  <span class="offer-count">312 offers this week</span>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark theme" aria-pressed="false">◐ <span id="theme-toggle-label">Dark</span></button>
+</header>
+
+<div class="filters-row">
+  <div class="segmented" role="group" aria-label="Store">
+    <button aria-pressed="true">Both</button>
+    <button class="seg-aldi" aria-pressed="false">ALDI</button>
+    <button class="seg-lidl" aria-pressed="false">LIDL</button>
+  </div>
+  <div class="divider"></div>
+  <div id="availability-filters" style="display:flex;flex-wrap:wrap;gap:10px">
+    <button class="chip active">All</button>
+    <button class="chip">Available now</button>
+    <button class="chip">✦ New for you</button>
+    <button class="chip date">06.07</button>
+    <button class="chip date">09.07</button>
+    <button class="chip date">12.07</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="select-wrapper"><select aria-label="Category"><option>All categories</option><option>Toys</option><option>Kitchen</option><option>Home</option><option>Garden</option><option>Auto</option></select></div>
+  <div class="price-range">
+    <span class="select-wrapper" style="position:static"><input class="price-input" type="number" placeholder="€ min" aria-label="Price from"></span>–<input class="price-input" type="number" placeholder="€ max" aria-label="Price to">
+  </div>
+  <div class="select-wrapper"><select aria-label="Sort"><option>Sort</option><option>Price ↑</option><option>Price ↓</option></select></div>
+  <input class="search-input" type="text" placeholder="Search products…" aria-label="Search products">
+  <button class="chip">Reset</button>
+  <button class="btn-dark" id="alerts-open">🔔 Alerts</button>
+</div>
+
+<div class="grid-meta"><span>Showing <b>14</b> offers</span><span class="page-ind">page 1 of 24</span></div>
+
+<div class="products-grid">
+  <article class="product-card aldi">
+    <span class="store-badge">ALDI</span>
+    <div class="product-image"><span class="ph">garden</span></div>
+    <div class="product-title">GARDENLINE Cotswold Cream Decorative Stones</div>
+    <div class="product-info"><span class="availability">From 12.07</span><span class="price">€5.99</span></div>
+    <div class="desc-tooltip"><b>ALDI · Gardenline</b>Decorative stones for borders and pots. 20 kg bag, weather-resistant.</div>
+  </article>
+  <article class="product-card aldi">
+    <span class="new-badge">NEW</span>
+    <span class="store-badge">ALDI</span>
+    <div class="product-image"><span class="ph">toys</span></div>
+    <div class="product-title">BRANDED Boombox / Keyboard</div>
+    <div class="product-info"><span class="availability">From 12.07</span><span class="price">€11.99</span></div>
+    <div class="desc-tooltip"><b>ALDI · Branded</b>Kids boombox with microphone or 32-key keyboard. Ages 3+.</div>
+  </article>
+  <article class="product-card lidl">
+    <span class="new-badge">NEW</span>
+    <span class="store-badge">LIDL</span>
+    <div class="product-image"><span class="ph">tech</span></div>
+    <div class="product-title">Tronic 10000&nbsp;mAh Power Bank</div>
+    <div class="product-info"><span class="availability">While stock lasts</span><span class="price">€9.99</span></div>
+    <div class="desc-tooltip"><b>LIDL · Tronic</b>USB-C PD 20 W fast charging, dual output, LED charge indicator.</div>
+  </article>
+  <article class="product-card lidl">
+    <span class="store-badge">LIDL</span>
+    <div class="product-image"><span class="ph">toys</span></div>
+    <div class="product-title">LEGO Lego Mix</div>
+    <div class="product-info"><span class="availability">From 12.07</span><span class="price">€8.99</span></div>
+    <div class="desc-tooltip"><b>LIDL</b>Assorted LEGO sets, selection varies by store.</div>
+  </article>
+  <article class="product-card aldi">
+    <span class="store-badge">ALDI</span>
+    <div class="product-image"><span class="ph">home</span></div>
+    <div class="product-title">LICENSED Travel Cushion</div>
+    <div class="product-info"><span class="availability">From 12.07</span><span class="price unknown">Price N/A</span></div>
+    <div class="desc-tooltip"><b>ALDI · Licensed</b>Character travel cushion. Price to be confirmed in store.</div>
+  </article>
+  <article class="product-card lidl">
+    <span class="store-badge">LIDL</span>
+    <div class="product-image"><span class="ph">kitchen</span></div>
+    <div class="product-title">Silvercrest Stainless Steel Pot Set</div>
+    <div class="product-info"><span class="availability">While stock lasts</span><span class="price">€19.99</span></div>
+    <div class="desc-tooltip"><b>LIDL · Silvercrest</b>3-piece pot set with glass lids, suitable for induction.</div>
+  </article>
+  <article class="product-card aldi">
+    <span class="store-badge">ALDI</span>
+    <div class="product-image"><span class="ph">home</span></div>
+    <div class="product-title">DISNEY Plush Chair</div>
+    <div class="product-info"><span class="availability">From 12.07</span><span class="price">€29.99</span></div>
+    <div class="desc-tooltip"><b>ALDI · Disney</b>Kids plush chair, assorted characters. Ages 18 m+.</div>
+  </article>
+  <article class="product-card lidl">
+    <span class="store-badge">LIDL</span>
+    <div class="product-image"><span class="ph">kitchen</span></div>
+    <div class="product-title">TEFAL Pressure Cooker</div>
+    <div class="product-info"><span class="availability">While stock lasts</span><span class="price">€49.99</span></div>
+    <div class="desc-tooltip"><b>LIDL · Tefal</b>6 L stainless pressure cooker, one-hand opening system.</div>
+  </article>
+</div>
+
+<div class="pagination">
+  <button disabled>‹ Prev</button>
+  <button class="page-number-btn active-page">1</button>
+  <button class="page-number-btn">2</button>
+  <button class="page-number-btn">3</button>
+  <button class="page-number-btn">4</button>
+  <span class="ellipsis">…</span>
+  <button class="page-number-btn">24</button>
+  <button>Next ›</button>
+</div>
+
+<footer>
+  Independent price tracker — not affiliated with ALDI or LIDL. Prices and availability may change in store.<br>
+  <a href="https://github.com/AviBackToBlack/lidaldi">View on GitHub</a>
+</footer>
+
+<!-- Alerts & Sync modal -->
+<div class="modal-overlay" id="alerts-modal" hidden>
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="alerts-title">
+    <div class="modal-header">
+      <h2 id="alerts-title">🔔 Alerts &amp; Sync</h2>
+      <button class="modal-close" id="alerts-close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <h3>Sync across devices</h3>
+      <div class="sync-row">
+        <div class="sync-code-value">7QK-3MP-9RD</div>
+        <button class="btn-ink">Copy</button>
+      </div>
+      <div class="push-row">
+        <div><div class="t">Push notifications</div><div class="d">Get pinged when a match drops</div></div>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Enable push notifications"></button>
+      </div>
+      <h3>Keyword alerts</h3>
+      <div class="keyword-list">
+        <span class="keyword-chip">air fryer <button aria-label="Remove air fryer">✕</button></span>
+        <span class="keyword-chip">lego <button aria-label="Remove lego">✕</button></span>
+        <span class="keyword-chip">power bank <button aria-label="Remove power bank">✕</button></span>
+      </div>
+      <form class="add-alert-form" onsubmit="return false">
+        <input type="text" placeholder="Add a keyword…" aria-label="Keyword">
+        <button class="btn-primary" style="padding:11px 18px">Add</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // demo wiring only — real logic lives in js/lidaldi.js
+  const modal = document.getElementById('alerts-modal');
+  document.getElementById('alerts-open').onclick = () => { modal.hidden = false; };
+  document.getElementById('alerts-close').onclick = () => { modal.hidden = true; };
+  modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') modal.hidden = true; });
+
+  const themeBtn = document.getElementById('theme-toggle');
+  const themeLabel = document.getElementById('theme-toggle-label');
+  function reflectTheme() {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    themeBtn.setAttribute('aria-pressed', dark);
+    themeLabel.textContent = dark ? 'Light' : 'Dark';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = dark ? '#e6624a' : '#d9542f';
+  }
+  themeBtn.onclick = () => {
+    const el = document.documentElement;
+    const next = el.dataset.theme === 'dark' ? 'light' : 'dark';
+    el.dataset.theme = next === 'dark' ? 'dark' : '';
+    document.cookie = 'lidaldi_theme=' + next + '; path=/; max-age=31536000; SameSite=Lax';
+    reflectTheme();
+  };
+  reflectTheme();
+
+  document.querySelectorAll('.segmented button').forEach(btn => {
+    btn.onclick = () => {
+      btn.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b === btn));
+    };
+  });
+
+  document.querySelector('.switch').onclick = function () {
+    this.setAttribute('aria-checked', this.getAttribute('aria-checked') !== 'true');
+  };
+</script>
+</body>
+</html>
