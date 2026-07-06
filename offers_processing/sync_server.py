@@ -235,7 +235,8 @@ class SyncHandler(BaseHTTPRequestHandler):
         if data is None:
             log_event("sync_get", req=self.req_id, code=hash_prefix(code),
                       status="empty")
-            return self._json(200, {"lastVisit": 0, "alerts": [], "tombstones": []})
+            return self._json(200, {"lastVisit": 0, "alerts": [],
+                                     "tombstones": [], "alertMatches": {}})
 
         # Defence in depth: drop any alerts whose id is in the current
         # tombstone list before returning. merge_alerts normally prevents
@@ -260,6 +261,11 @@ class SyncHandler(BaseHTTPRequestHandler):
             "lastVisit": data.get("lastVisit", 0),
             "alerts": visible_alerts,
             "tombstones": stored_tombs,
+            # Read-only for clients: written by send_notifications.py,
+            # ignored on POST. Frozen contract for the AlertsView (T6).
+            "alertMatches": sync_store.gc_alert_matches(
+                data.get("alertMatches") or {}
+            ),
         }
         self._json(200, safe)
 
@@ -313,6 +319,7 @@ class SyncHandler(BaseHTTPRequestHandler):
                     "tombstones": [],
                     "pushSubscriptions": [],
                     "notified": [],
+                    "alertMatches": {},
                 }
 
             merged_lv = max(int(existing.get("lastVisit", 0) or 0), lv)
@@ -336,7 +343,10 @@ class SyncHandler(BaseHTTPRequestHandler):
                 "alerts": merged_alerts,
                 "tombstones": merged_tombs,
                 "pushSubscriptions": subs,
+                # Server-owned fields: whatever the client POSTs for these
+                # is ignored; only send_notifications.py writes them.
                 "notified": existing.get("notified", []),
+                "alertMatches": existing.get("alertMatches", {}),
             }
 
         def _on_corrupt(err):
