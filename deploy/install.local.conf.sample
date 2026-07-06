@@ -1,0 +1,41 @@
+# LIDALDI installer local configuration (T10, arch doc §6.5).
+#
+# Copy to `install.local.conf` next to update.sh and edit. The real file is
+# git-ignored: paths differ per environment and never belong in the repo.
+# Sourced by bash — KEY="value" lines only, no command substitution.
+
+# Where the application code + venv + live config.toml/.env live.
+APP_ROOT="/opt/lidaldi"
+
+# Web root served by nginx (frontend/dist build output; offers.json and
+# meta.json are written here by process_offers.py and are never touched by
+# the installer).
+WEB_ROOT="/var/www/lidaldi"
+
+# System user the cron job and sync service run as (created if missing).
+SERVICE_USER="lidaldi"
+
+# Sync profile store (alerts, lastVisit, push subscriptions). Backed up
+# before every mutating update.
+SYNC_DIR="/opt/lidaldi/data/sync"
+
+# Log directory (cron output, logrotate target).
+LOG_DIR="/var/log/lidaldi"
+
+# Optional: Prometheus node_exporter textfile collector directory.
+# Uncomment to grant the sync service write access to it.
+#PROM_DIR="/var/lib/prometheus/node-exporter"
+
+# Where timestamped pre-update backups (configs + SYNC_DIR) are written.
+#BACKUP_DIR="/var/backups/lidaldi"
+
+# --- Rarely needed overrides (defaults shown) --------------------------------
+# Source checkout the installer deploys from (defaults to the repo containing
+# update.sh).
+#REPO_DIR="/opt/lidaldi-checkout"
+#CRON_DIR="/etc/cron.d"
+#LOGROTATE_DIR="/etc/logrotate.d"
+#SYSTEMD_DIR="/etc/systemd/system"
+#NGINX_SNIPPET_DIR="/etc/nginx/snippets"
+# Set to 0 to skip service-user management (e.g. containers/tests).
+#MANAGE_USER=1

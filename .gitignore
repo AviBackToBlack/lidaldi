@@ -74,6 +74,9 @@ config.py
 config.toml
 .env
 
+# Installer local paths (T10) — per-environment, never committed
+deploy/install.local.conf
+
 # Test harness (T1)
 .venv/
 node_modules/
