@@ -123,9 +123,14 @@ apply_action() {
             install -D -m "${f[3]}" "${f[1]}" "${f[2]}"
             if [ "${f[4]:-}" = "own" ]; then maybe_chown "${f[2]}"; fi
             ;;
-        synctree) # synctree <src> <dst>
+        synctree) # synctree <src> <dst> — skips live-config/key/data patterns
+            # (config.py, settings.py, *.pem, *.json), mirroring the drift
+            # check, so repo files can never overwrite live ones.
             mkdir -p "${f[2]}"
-            cp -a "${f[1]}/." "${f[2]}/"
+            (cd "${f[1]}" && find . -type f ! -path '*/__pycache__/*' \
+                ! -name '*.pyc' ! -name 'config.py' ! -name 'settings.py' \
+                ! -name '*.pem' ! -name '*.json' \
+                -exec cp -a --parents {} "${f[2]}/" \;)
             maybe_chown "${f[2]}"
             ;;
         webroot) # webroot <dist> <webroot>
