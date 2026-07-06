@@ -89,6 +89,11 @@ def test_post_bool_lastvisit_rejected(server):
     _post_expect_400(server, {"lastVisit": False})
 
 
+def test_post_bool_or_nan_in_alerts_and_tombstones_rejected(server):
+    _post_expect_400(server, {"alerts": [dict(ALERT, createdAt=True)]})
+    _post_expect_400(server, {"deletedAlertIds": [{"id": "a1", "at": True}]})
+
+
 def test_post_nonfinite_lastvisit_rejected(server):
     """json.loads accepts NaN/Infinity; they must be a 400, not a 500."""
     for raw in (b'{"lastVisit": NaN}', b'{"lastVisit": Infinity}'):
