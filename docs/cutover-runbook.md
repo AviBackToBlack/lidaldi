@@ -151,12 +151,11 @@ idempotent `update.sh`.
 
 - **F1** — no automated legacy `config.py` → TOML/.env value migration;
   Step 4 is mandatory manual work.
-- **F2** — `process_offers.py` still renders `index.html` from
-  `index.html.tpl` on every data run, clobbering the Vite-built
-  `index.html` deployed by `update.sh` (D2 incomplete; xfail
-  `test_built_index_html_survives_data_runs`).
+- **F2** — RESOLVED (D2 complete): `process_offers.py` no longer renders
+  `index.html`; the deployed frontend build survives data runs
+  (`test_built_index_html_survives_data_runs` now passes).
 - **T6 follow-up** — push icon `/img/lidaldi.png` is not yet shipped by the
   frontend build (xfail `test_push_icon_shipped_at_web_root`).
 - `update.sh` code sync never *removes* files deleted from the repo
-  (legacy modules and `index.html.tpl` linger in APP_ROOT/WEB_ROOT — the
-  F2 trigger).
+  (legacy modules and a stale `index.html.tpl` may linger in
+  APP_ROOT/WEB_ROOT — harmless now that nothing reads the template).

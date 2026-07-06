@@ -175,10 +175,6 @@ def _load_toml(toml_path, env_path):
 
     cfg.OFFERS_JSON = _path("offers_json", os.path.join(webroot, "offers.json"))
     cfg.META_JSON = _path("meta_json", os.path.join(webroot, "meta.json"))
-    cfg.INDEX_TEMPLATE = _path("index_template", os.path.join(webroot, "index.html.tpl"))
-    cfg.INDEX_HTML = _path("index_html", os.path.join(webroot, "index.html"))
-    cfg.INDEX_NEW_HTML = _path("index_new_html", os.path.join(webroot, "index.new.html"))
-    cfg.INDEX_OLD_HTML = _path("index_old_html", os.path.join(webroot, "index.old.html"))
 
     cfg.SYNC_DIR = _optional(data, "sync", "dir", os.path.join(processing, "sync"))
     cfg.SYNC_SERVER_HOST = _optional(data, "sync", "host", "127.0.0.1")

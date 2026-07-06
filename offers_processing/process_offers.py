@@ -4,8 +4,9 @@ LidAldi Offers Processor
 
 Merges ALDI and LIDL scraped offers into a single dataset, maintains the
 first_seen store (stable product id -> first-appearance timestamp), generates
-new_offers.json (for push notifications), writes offers.json/meta.json for
-the frontend, and renders the final index.html from the template.
+new_offers.json (for push notifications), and writes offers.json/meta.json
+for the frontend (D2). index.html is owned by the frontend build (frontend/)
+and deployed by deploy/update.sh; this script never touches it.
 
 Run after both spiders have finished in the cron chain.
 """
@@ -45,21 +46,6 @@ FIRST_SEEN_GC_DAYS = 180
 # ---------------------------------------------------------------------------
 def telegram(message):
     send_telegram_message(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, message)
-
-
-# ---------------------------------------------------------------------------
-# JSON-in-HTML escaping (C1)
-# ---------------------------------------------------------------------------
-def safe_json_for_script(obj, indent=2):
-    """Serialize `obj` to JSON that is safe to embed inside an HTML
-    <script> block. Prevents `</script>` termination and U+2028/U+2029
-    script-parser surprises."""
-    s = json.dumps(obj, indent=indent, ensure_ascii=False)
-    return (
-        s.replace("</", "<\\/")
-         .replace("\u2028", "\\u2028")
-         .replace("\u2029", "\\u2029")
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -462,35 +448,6 @@ def main():
             os.makedirs(parent, exist_ok=True)
         write_atomic(config.NEW_OFFERS_JSON, new_offers_content)
 
-        # ------------------------------------------------------------------
-        # Render index.html
-        # ------------------------------------------------------------------
-        if not os.path.exists(config.INDEX_TEMPLATE):
-            fatal(f"{config.INDEX_TEMPLATE} does not exist", summary)
-
-        with open(config.INDEX_TEMPLATE, "r", encoding="utf-8") as tpl:
-            template_content = tpl.read()
-
-        offers_json_str = safe_json_for_script(lidaldi_offers, indent=2)
-        today_str = datetime.now().strftime("%d/%m/%Y")
-        meta_data = safe_json_for_script({"lastUpdated": today_str}, indent=2)
-
-        new_content = template_content.replace("%%SPECIAL_OFFERS_DATA%%", offers_json_str)
-        new_content = new_content.replace("%%SPECIAL_OFFERS_META_DATA%%", meta_data)
-        # VAPID key lands in a quoted HTML attribute; escape defensively.
-        # A well-formed base64url key has no special characters, but
-        # operator misconfiguration (e.g. pasting a PEM) must not break
-        # the markup or inject attributes.
-        vapid_attr = (
-            (config.VAPID_PUBLIC_KEY or "")
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-            .replace("'", "&#39;")
-        )
-        new_content = new_content.replace("%%VAPID_PUBLIC_KEY%%", vapid_attr)
-
         # Persist the first_seen store BEFORE replacing the published
         # site files.
         #
@@ -521,14 +478,6 @@ def main():
                 ensure_ascii=False,
             ),
         )
-
-        # Single atomic rename: write to .tmp, then os.replace into place.
-        # This avoids the previous two-step rename that could leave index.html
-        # absent if the process was interrupted (H3).
-        tmp_path = config.INDEX_HTML + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            f.write(new_content)
-        os.replace(tmp_path, config.INDEX_HTML)
 
         log_event(
             "process_offers_success",

@@ -37,8 +37,7 @@ cron (daily)
        ├─ process_offers.py
        │    ├─ merges offers, maintains first_seen store (stable ids, 180-day GC)
        │    ├─ writes offers.json + meta.json to the web root (static data, D2)
-       │    ├─ writes new_offers.json (items new this run)
-       │    └─ renders legacy index.html (transition only — see website/)
+       │    └─ writes new_offers.json (items new this run)
        └─ send_notifications.py
             ├─ matches new_offers.json against every profile's alerts
             └─ sends one aggregate Web Push per subscription endpoint,
@@ -154,7 +153,7 @@ wins when present. Secrets placed in the TOML are rejected.
 | `NEW_OFFERS_JSON` / `FIRST_SEEN_JSON` / `LAST_RUN_STATE_JSON` | derived; override `[paths] new_offers_json` / `first_seen_json` / `last_run_state_json` |
 | `PROM_TEXTFILE_DIR` | `[paths] prom_textfile_dir` (optional, default None) |
 | `OFFERS_JSON` / `META_JSON` | derived; override `[paths] offers_json` / `meta_json` |
-| `INDEX_TEMPLATE` / `INDEX_HTML` / `INDEX_NEW_HTML` / `INDEX_OLD_HTML` | derived; override `[paths] index_template` / `index_html` / `index_new_html` / `index_old_html` |
+| `INDEX_TEMPLATE` / `INDEX_HTML` / `INDEX_NEW_HTML` / `INDEX_OLD_HTML` | removed — index.html is built by the frontend (`frontend/`) and deployed by `deploy/update.sh`; the pipeline no longer renders it (D2) |
 | `SYNC_DIR` | `[sync] dir` (default `<processing>/sync`) |
 | `SYNC_SERVER_HOST` / `SYNC_SERVER_PORT` | `[sync] host` / `port` (defaults `127.0.0.1` / `8099`) |
 | `SYNC_ALLOWED_ORIGIN` | `[sync] allowed_origin` (required) |
