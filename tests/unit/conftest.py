@@ -92,6 +92,24 @@ def sync_env(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def server(sync_env, monkeypatch):
+    """Real sync_server (ThreadingHTTPServer) in a thread + temp SYNC_DIR."""
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    import sync_server
+
+    # Tests fire many requests from one IP; don't trip the rate limiter.
+    monkeypatch.setattr(sync_server, "RATE_MAX", 10000)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), sync_server.SyncHandler)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+    t.join(timeout=5)
+
+
+@pytest.fixture
 def po(tmp_path, monkeypatch):
     """Import process_offers with a stub config pointed at tmp_path."""
     import process_offers

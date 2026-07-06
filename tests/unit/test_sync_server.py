@@ -1,28 +1,9 @@
 """T3/T4: sync_server HTTP contract tests against a real server in a thread."""
 
 import json
-import threading
 import time
 import urllib.error
 import urllib.request
-from http.server import ThreadingHTTPServer
-
-import pytest
-
-
-@pytest.fixture
-def server(sync_env, monkeypatch):
-    import sync_server
-
-    # Tests fire many requests from one IP; don't trip the rate limiter.
-    monkeypatch.setattr(sync_server, "RATE_MAX", 10000)
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), sync_server.SyncHandler)
-    t = threading.Thread(target=srv.serve_forever, daemon=True)
-    t.start()
-    base = f"http://127.0.0.1:{srv.server_address[1]}"
-    yield base
-    srv.shutdown()
-    t.join(timeout=5)
 
 
 def _get(base, code):
