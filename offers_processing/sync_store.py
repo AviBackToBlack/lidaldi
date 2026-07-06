@@ -22,7 +22,9 @@ except ImportError as _e:
         "supported on Windows; run inside Linux/WSL."
     ) from _e
 
-import config
+from config_loader import get_config
+
+config = get_config()
 
 
 TOMBSTONE_TTL_SEC = 30 * 24 * 3600
