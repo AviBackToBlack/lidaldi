@@ -10,8 +10,8 @@ production. Companion docs: [observability.md](observability.md)
 One script handles both fresh installs and updates. It is **idempotent and
 plan-then-apply**: every step (service user, directories, code sync,
 `frontend/dist` → web root, rendered cron/logrotate/systemd/nginx files,
-venv + deps, config merge) checks the current state and only registers an
-action on drift. A second run on an already-installed system is a strict
+pyenv virtualenv + deps, config merge) checks the current state and only
+registers an action on drift. A second run on an already-installed system is a strict
 no-op (`NOOP`, no backup, no mutation).
 
 ```bash
@@ -28,18 +28,40 @@ sudo ./deploy/update.sh               # apply
   `lidaldi-sync` (which otherwise happens only when the rendered unit
   changed, running as root, with systemd present).
 - `--config /path/to/install.local.conf` uses an alternate local config.
-- Preflight: aborts unless `python3` is ≥ 3.11 (decision D3). On Ubuntu:
-  `add-apt-repository ppa:deadsnakes/ppa`, install `python3.11`, re-run with
-  `PYTHON=python3.11`.
+- Preflight: aborts unless pyenv and pyenv-virtualenv are available, pyenv
+  has the pinned Python `3.12.x` base installed (`3.12.13` by default), and
+  that interpreter is ≥ 3.12 (decision D3). Override with `PYENV_ROOT`,
+  `PYENV_PYTHON_VERSION`, or `PYENV_VIRTUALENV_NAME` in `install.local.conf`
+  only when needed.
 - The real `install.local.conf` is git-ignored — paths differ per
   environment and never belong in the repo.
-- The venv is re-pipped only when the `requirements.txt` hash changes.
+- The pyenv virtualenv (`lidaldi` by default) is created/reused and re-pipped
+  only when the `requirements.txt` hash changes.
 - The web-root sync deploys `frontend/dist` verbatim but **never touches
   `offers.json` / `meta.json`** — those are data written by
   `process_offers.py` (D2: app deploy ≠ data write). `frontend/dist` is a
   build artifact: build it in CI or locally (`cd frontend && npm ci && npm
   run build`) before running the installer; if it is missing the installer
   warns and skips the web-root sync rather than running npm on the server.
+
+Expected production pyenv layout:
+
+```bash
+sudo git clone https://github.com/pyenv/pyenv.git /opt/pyenv
+sudo git -C /opt/pyenv checkout 933d0aaf1d1190a641c3ddce484e72b1a993473d
+sudo mkdir -p /opt/pyenv/plugins
+sudo git clone https://github.com/pyenv/pyenv-virtualenv.git /opt/pyenv/plugins/pyenv-virtualenv
+sudo git -C /opt/pyenv/plugins/pyenv-virtualenv checkout eda64556af9b2992386deeb75dad2130899fc4c9
+echo 'export PYENV_ROOT="/opt/pyenv"' | sudo tee /etc/profile.d/pyenv.sh
+echo 'export PATH="$PYENV_ROOT/bin:$PATH"' | sudo tee -a /etc/profile.d/pyenv.sh
+echo 'eval "$(pyenv init --path)"' | sudo tee -a /etc/profile.d/pyenv.sh
+echo 'eval "$(pyenv virtualenv-init -)"' | sudo tee -a /etc/profile.d/pyenv.sh
+sudo env PYENV_ROOT=/opt/pyenv /opt/pyenv/bin/pyenv install 3.12.13
+```
+
+Use `PYENV_VERSION=3.12.13 python ...` for bare interpreter checks. Use
+`PYENV_VERSION=lidaldi python ...` (or `/opt/pyenv/versions/lidaldi/bin/python`)
+for application commands that need packages from `requirements.txt`.
 
 ### Config merge (`deploy/merge_config.py`)
 
@@ -79,7 +101,7 @@ notifications.
 - Generate **once**, at first install only:
 
   ```bash
-  python offers_processing/generate_vapid_keys.py /path/to/processing/folder
+  PYENV_VERSION=lidaldi python offers_processing/generate_vapid_keys.py /path/to/processing/folder
   ```
 
   This writes `vapid_private.pem` and prints the public key. Put the public

@@ -7,11 +7,11 @@ deterministic: no live calls to aldi.ie / lidl.ie or push services.
 
 ```sh
 docker compose run --rm test make test     # containerized (same as CI)
-# or, on a host with python3 >= 3.11 + Node LTS + Playwright browsers:
+# or, on a host with pyenv Python 3.12.13 + Node LTS + Playwright browsers:
 make test
 ```
 
-`make test` = `test-unit` + `test-e2e` + `test-load` + `test-security`.
+`make test` = `test-unit` + `test-installer` + `test-e2e` + `test-load` + `test-security`.
 
 ## Targets
 
@@ -27,9 +27,10 @@ make test
 
 - `.devcontainer/devcontainer.json` + `docker-compose.yml` use the pinned
   official Playwright image `mcr.microsoft.com/playwright:v1.61.1-noble`
-  (Node LTS + all three browser engines; Ubuntu 24.04 → python3.12 ≥ 3.11 floor, D3).
-- First run: `make setup` creates `.venv/` (tests/requirements.txt) and installs
-  `tests/e2e/` npm deps. `make test` does this automatically.
+  plus pyenv Python `3.12.13` and a `lidaldi` pyenv virtualenv.
+- First run: `make setup` installs `tests/requirements.txt` into the pyenv
+  `lidaldi` environment and installs `tests/e2e/` npm deps. `make test` does
+  this automatically.
 - Visual snapshots are per-engine. To (re)generate after intentional UI changes:
   `cd tests/e2e && npx playwright test --update-snapshots` (inside the container,
   so snapshots match CI rendering).

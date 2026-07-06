@@ -6,7 +6,7 @@ sample but missing from the live file are ADDED (with the sample's raw line,
 comments preserved); existing live values are NEVER overwritten. Keys present
 in the live file but absent from the sample are reported for manual review.
 
-Stdlib only; requires Python >= 3.11 (tomllib, decision D3).
+Stdlib only; requires Python >= 3.12 (decision D3).
 
 Usage:
     merge_config.py --mode toml --sample config.toml.sample --live config.toml
@@ -22,9 +22,9 @@ import re
 import sys
 import tempfile
 
-if sys.version_info < (3, 11):
+if sys.version_info < (3, 12):
     sys.exit(
-        "merge_config.py requires Python >= 3.11 (stdlib tomllib, decision "
+        "merge_config.py requires Python >= 3.12 (decision "
         "D3); found %s." % ".".join(str(p) for p in sys.version_info[:3])
     )
 

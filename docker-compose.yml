@@ -1,7 +1,7 @@
 # Reproducible test environment for the LIDALDI refactor (T1).
 # Base image (see .devcontainer/Dockerfile): official Playwright image (pinned)
 # — ships Node LTS and Chromium/Firefox/WebKit browsers with all system deps.
-# Ubuntu 24.04 (noble), system python3 is 3.12 (>= 3.11 floor, D3). Adds `make`.
+# Adds pyenv Python 3.12.13 + pyenv-virtualenv and `make`.
 services:
   test:
     build:

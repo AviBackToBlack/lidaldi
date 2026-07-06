@@ -11,7 +11,7 @@ send_notifications against a local mock push service).
 
 Everything happens under tmp_path; nothing outside is ever touched. The
 sandboxing pattern mirrors tests/installer/conftest.py, but with the REAL
-requirements.txt (the venv step pip-installs for real — network needed)
+requirements.txt (the pyenv virtualenv step pip-installs for real — network needed)
 and the REAL built frontend/dist, so the rehearsal exercises the exact
 artifacts the operator will deploy. Runs via `make test-migration`
 (separate CI job); NOT part of `make test`.
@@ -34,6 +34,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PYENV_PYTHON_VERSION = "3.12.13"
 
 SYNC_CODE_A = "k7PmQ2xZ"   # alerts + push subscription (mock push endpoint)
 SYNC_CODE_B = "Wf4nR9tC"   # alerts, no subscriptions
@@ -99,6 +100,45 @@ def file_bytes(root: Path):
         if path.is_file():
             out[str(path.relative_to(root))] = path.read_bytes()
     return out
+
+
+def create_fake_pyenv(root: Path):
+    """Create a minimal pyenv/pyenv-virtualenv shim for migration rehearsal."""
+    pyenv_root = root / "pyenv"
+    bin_dir = pyenv_root / "bin"
+    versions = pyenv_root / "versions"
+    base = versions / PYENV_PYTHON_VERSION
+    bin_dir.mkdir(parents=True)
+    (base / "bin").mkdir(parents=True)
+    os.symlink(sys.executable, base / "bin" / "python")
+    shim = bin_dir / "pyenv"
+    shim.write_text(
+        "#!/bin/bash\n"
+        "set -euo pipefail\n"
+        'root="${PYENV_ROOT:?}"\n'
+        'cmd="${1:-}"\n'
+        "case \"$cmd\" in\n"
+        "  root)\n"
+        "    printf '%s\\n' \"$root\"\n"
+        "    ;;\n"
+        "  versions)\n"
+        "    find \"$root/versions\" -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | sort\n"
+        "    ;;\n"
+        "  virtualenv)\n"
+        "    if [ \"${2:-}\" = \"--help\" ]; then echo 'usage: pyenv virtualenv VERSION NAME'; exit 0; fi\n"
+        "    base=\"$2\"; name=\"$3\"\n"
+        "    \"$root/versions/$base/bin/python\" -m venv \"$root/versions/$name\"\n"
+        "    ;;\n"
+        "  exec)\n"
+        "    shift\n"
+        "    exe=\"$1\"; shift\n"
+        "    exec \"$root/versions/${PYENV_VERSION:?}/bin/$exe\" \"$@\"\n"
+        "    ;;\n"
+        "  *) echo \"fake pyenv: unsupported $cmd\" >&2; exit 2 ;;\n"
+        "esac\n"
+    )
+    shim.chmod(0o755)
+    return pyenv_root
 
 
 def b64url(data: bytes) -> str:
@@ -205,6 +245,7 @@ def build_legacy_vps(tmp_path: Path, frontend_dist: Path):
     v["SYSTEMD_DIR"] = root / "etc" / "systemd" / "system"
     v["NGINX_SNIPPET_DIR"] = root / "etc" / "nginx" / "snippets"
     v["sync_port"] = free_port()
+    v["PYENV_ROOT"] = create_fake_pyenv(tmp_path)
 
     # --- Repo checkout the operator deploys from (real code, real
     # requirements.txt, real built frontend/dist). ---
@@ -339,6 +380,8 @@ def build_legacy_vps(tmp_path: Path, frontend_dist: Path):
         "MANAGE_USER=0",
         f'REPO_DIR="{v["repo"]}"',
         f'VAPID_PRIVATE_KEY_PATH="{v["vapid_pem"]}"',
+        f'PYENV_ROOT="{v["PYENV_ROOT"]}"',
+        f'PYENV_PYTHON_VERSION="{PYENV_PYTHON_VERSION}"',
     ]
     conf.write_text("\n".join(lines) + "\n")
     v["conf"] = conf
@@ -349,7 +392,9 @@ def run_update(v, *args, check=True):
     return run(
         ["bash", str(v["repo"] / "deploy" / "update.sh"),
          "--config", str(v["conf"]), "--no-restart", *args],
-        env={"PYTHON": sys.executable}, check=check,
+        env={"PYENV_VERSION": "ignored-by-update-sh",
+             "PYENV_VIRTUALENV": "also-ignored"},
+        check=check,
     )
 
 
@@ -397,7 +442,7 @@ def pipeline_env(v):
 
 
 def venv_python(v):
-    return str(v["APP_ROOT"] / ".venv" / "bin" / "python")
+    return str(v["PYENV_ROOT"] / "versions" / "lidaldi" / "bin" / "python")
 
 
 def run_pipeline(v, script, check=True):
@@ -425,8 +470,8 @@ def cutover(tmp_path_factory, frontend_dist):
     v = build_legacy_vps(tmp_path, frontend_dist)
     R = {"vps": v}
 
-    # Phase 0: preflight — the operator has installed python3.11 (D3).
-    assert sys.version_info >= (3, 11), "rehearsal must run under >=3.11"
+    # Phase 0: preflight — the operator has installed pinned pyenv Python 3.12.x (D3).
+    assert sys.version_info >= (3, 12), "rehearsal must run under >=3.12"
     R["pre_state"] = tree_state(v["root"])
     R["pre_sync"] = file_bytes(v["SYNC_DIR"])
     R["pre_vapid"] = v["vapid_pem"].read_bytes()

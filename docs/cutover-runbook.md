@@ -1,7 +1,7 @@
 # LIDALDI VPS Cutover Runbook (T15)
 
 Exact operator steps to migrate the production VPS from the legacy system
-(static `website/` rendering, legacy `config.py`/`settings.py`, Python 3.8)
+(static `website/` rendering, legacy `config.py`/`settings.py`, old system Python)
 to the refactored stack. **Do NOT execute against the real VPS before Hard
 Stop #2 sign-off** (PROGRESS.md).
 
@@ -20,18 +20,19 @@ cron/systemd/nginx artifacts.
 | Repo checkout of branch `refactor` on the VPS | fixture `build_legacy_vps` (deploys from a checkout) |
 | Frontend built: `cd frontend && npm ci && npm run build` | `test_frontend_dist_served_at_web_root` (update.sh warns and skips web root if `frontend/dist` is missing) |
 
-## Step 1 — Install Python 3.11 (deadsnakes, decision D3)
+## Step 1 — Confirm pinned pyenv Python 3.12.x (decision D3)
 
 ```sh
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt-get update
-sudo apt-get install -y python3.11 python3.11-venv
+test -x /opt/pyenv/bin/pyenv
+PYENV_ROOT=/opt/pyenv /opt/pyenv/bin/pyenv versions --bare | grep -Fx 3.12.13
+PYENV_ROOT=/opt/pyenv /opt/pyenv/bin/pyenv virtualenv --help >/dev/null
 ```
 
-The installer refuses to run on anything older and prints the deadsnakes
-hint — you cannot skip this step by accident.
+The installer refuses to run without pyenv, without pyenv-virtualenv, or
+without the configured Python version. On apply it creates/reuses the pyenv
+virtualenv `lidaldi` from the pinned Python 3.12.x base.
 **Proof:** `test_python_check_enforced_before_anything_else`,
-`tests/installer/test_update_sh.py::test_python_below_311_aborts`.
+`tests/installer/test_update_sh.py::test_missing_pyenv_python_aborts`.
 
 ## Step 2 — Configure and dry-run
 
@@ -40,18 +41,18 @@ cp deploy/install.local.conf.sample deploy/install.local.conf
 $EDITOR deploy/install.local.conf   # APP_ROOT, WEB_ROOT, SYNC_DIR (the
                                     # EXISTING live sync dir!), LOG_DIR,
                                     # VAPID_PRIVATE_KEY_PATH (the EXISTING pem)
-sudo PYTHON=python3.11 deploy/update.sh --dry-run
+sudo deploy/update.sh --dry-run
 ```
 
 Review the printed plan: expect drift on cron/logrotate/systemd/nginx,
-code sync, web root, venv, and config creation. A dry run changes
+code sync, web root, pyenv virtualenv, and config creation. A dry run changes
 **nothing** on disk and takes no backup.
 **Proof:** `test_dry_run_previews_plan_without_mutation`.
 
 ## Step 3 — Apply
 
 ```sh
-sudo PYTHON=python3.11 deploy/update.sh
+sudo deploy/update.sh
 ```
 
 Before mutating anything, the installer writes a timestamped backup to
@@ -85,7 +86,7 @@ hand, using the key map in the T9 PR (#7):
 Then re-run the installer; it must report `NOOP` (converged state):
 
 ```sh
-sudo PYTHON=python3.11 deploy/update.sh   # expect: NOOP
+sudo deploy/update.sh   # expect: NOOP
 ```
 
 **Proof:** `test_config_created_from_sample_needs_operator_edit`,
@@ -97,7 +98,7 @@ sudo PYTHON=python3.11 deploy/update.sh   # expect: NOOP
 Trigger one pipeline run (or wait for cron):
 
 ```sh
-sudo -u <service-user> $APP_ROOT/.venv/bin/python \
+sudo -u <service-user> /opt/pyenv/versions/lidaldi/bin/python \
     $APP_ROOT/offers_processing/process_offers.py
 ```
 
@@ -154,8 +155,5 @@ idempotent `update.sh`.
 - **F2** — RESOLVED (D2 complete): `process_offers.py` no longer renders
   `index.html`; the deployed frontend build survives data runs
   (`test_built_index_html_survives_data_runs` now passes).
-- **T6 follow-up** — push icon `/img/lidaldi.png` is not yet shipped by the
-  frontend build (xfail `test_push_icon_shipped_at_web_root`).
-- `update.sh` code sync never *removes* files deleted from the repo
-  (legacy modules and a stale `index.html.tpl` may linger in
-  APP_ROOT/WEB_ROOT — harmless now that nothing reads the template).
+- The installer backup is data/config oriented. Rollback restores configs and
+  `SYNC_DIR`, not a full code/webroot/systemd snapshot.

@@ -1,14 +1,14 @@
 """Installer/updater acceptance tests (T10).
 
 Covers the T10 success criteria: idempotency (second run = no-op), sample->
-real merge adds-never-clobbers, dry-run makes zero changes, Python < 3.11
+real merge adds-never-clobbers, dry-run makes zero changes, pyenv preflight
 abort, and backups before any mutation.
 """
 
 import os
 import stat
 
-from conftest import run_update, tree_state
+from conftest import PYENV_PYTHON_VERSION, run_update, tree_state
 
 
 def test_first_run_installs_everything(sandbox):
@@ -20,7 +20,7 @@ def test_first_run_installs_everything(sandbox):
     assert (sandbox["NGINX_SNIPPET_DIR"] / "lidaldi-sync-proxy.conf").is_file()
     assert (sandbox["WEB_ROOT"] / "index.html").is_file()
     assert (sandbox["APP_ROOT"] / "offers_processing" / "process_offers.py").is_file()
-    assert (sandbox["APP_ROOT"] / ".venv" / "bin" / "python").exists()
+    assert (sandbox["PYENV_ROOT"] / "versions" / "lidaldi" / "bin" / "python").exists()
     assert (sandbox["APP_ROOT"] / "config.toml").is_file()
     env_file = sandbox["APP_ROOT"] / ".env"
     assert env_file.is_file()
@@ -29,6 +29,11 @@ def test_first_run_installs_everything(sandbox):
     cron = (sandbox["CRON_DIR"] / "lidaldi").read_text()
     assert "/path/to/" not in cron
     assert str(sandbox["APP_ROOT"] / "scraper" / "run_scrapers.sh") in cron
+    run_scrapers = sandbox["APP_ROOT"] / "scraper" / "run_scrapers.sh"
+    run_scrapers_text = run_scrapers.read_text()
+    assert "/path/to/" not in run_scrapers_text
+    assert str(sandbox["PYENV_ROOT"] / "versions" / "lidaldi" / "bin" / "activate") in run_scrapers_text
+    assert os.access(run_scrapers, os.X_OK)
     unit = (sandbox["SYSTEMD_DIR"] / "lidaldi-sync.service").read_text()
     assert str(sandbox["SYNC_DIR"]) in unit
     assert "your-website-url" not in unit
@@ -101,21 +106,43 @@ def test_merge_adds_never_clobbers(sandbox):
     assert "NOOP" in proc.stdout
 
 
-def test_python_below_311_aborts(sandbox, tmp_path):
-    shim_dir = tmp_path / "shim"
-    shim_dir.mkdir()
-    shim = shim_dir / "fakepython"
-    shim.write_text(
-        "#!/bin/bash\n"
-        'if [ "$1" = "--version" ]; then echo "Python 3.8.10"; exit 0; fi\n'
-        "exit 1\n"
+def test_missing_pyenv_python_aborts(sandbox):
+    conf = sandbox["conf"]
+    conf.write_text(
+        conf.read_text().replace(
+            f'PYENV_PYTHON_VERSION="{PYENV_PYTHON_VERSION}"',
+            'PYENV_PYTHON_VERSION="3.10.0"',
+        )
     )
-    shim.chmod(0o755)
-    proc = run_update(sandbox, env={"PYTHON": str(shim)}, check=False)
+    proc = run_update(sandbox, check=False)
     assert proc.returncode != 0
-    assert "Python >= 3.11 required" in proc.stderr
-    assert "deadsnakes" in proc.stderr
+    assert "pyenv Python 3.10.0 is not installed" in proc.stderr
     assert not sandbox["root"].exists()
+
+
+def test_inherited_pyenv_selection_vars_are_ignored(sandbox):
+    proc = run_update(
+        sandbox,
+        env={"PYENV_VERSION": "definitely-not-lidaldi",
+             "PYENV_VIRTUALENV": "wrong-env"},
+    )
+    assert proc.returncode == 0
+    assert (sandbox["PYENV_ROOT"] / "versions" / "lidaldi" / "bin" / "python").exists()
+    assert "wrong-env" not in (
+        sandbox["APP_ROOT"] / "scraper" / "run_scrapers.sh"
+    ).read_text()
+
+
+def test_existing_virtualenv_must_match_pinned_python(sandbox):
+    venv = sandbox["PYENV_ROOT"] / "versions" / "lidaldi" / "bin"
+    venv.mkdir(parents=True)
+    fake_python = venv / "python"
+    fake_python.write_text("#!/bin/sh\nexit 1\n")
+    fake_python.chmod(0o755)
+    proc = run_update(sandbox, check=False)
+    assert proc.returncode != 0
+    assert f"is not based on Python {PYENV_PYTHON_VERSION}" in proc.stderr
+    assert "pyenv virtualenv-delete lidaldi" in proc.stderr
 
 
 def test_backup_before_mutation(sandbox):

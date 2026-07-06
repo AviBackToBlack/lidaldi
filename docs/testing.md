@@ -6,7 +6,7 @@ moves with it). Summary:
 
 ```bash
 docker compose run --rm test make test    # containerized, identical to CI
-# or, on a host with python3 >= 3.11 + Node LTS + Playwright browsers:
+# or, on a host with pyenv Python 3.12.13 + Node LTS + Playwright browsers:
 make test
 ```
 

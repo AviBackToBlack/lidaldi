@@ -68,7 +68,7 @@ Key data files (paths derived from config, see `config.toml.sample`):
 ```
 scraper/                    Scrapy project (ALDI + LIDL spiders, pipelines)
 offers_processing/
-  config_loader.py          TOML/.env config loader (Python >= 3.11, stdlib tomllib)
+  config_loader.py          TOML/.env config loader (Python >= 3.12)
   common.py                 Shared helpers (logging, Telegram, Prometheus textfiles)
   sync_store.py             Cross-process locked JSON store for sync profiles (POSIX-only)
   process_offers.py         Merge + first_seen + offers.json/meta.json + new_offers.json
@@ -92,9 +92,10 @@ config.toml.sample          Non-secret configuration template
 
 ## Requirements
 
-- **Python ≥ 3.11** (decision D3 — the config loader uses stdlib `tomllib` and
-  aborts on older interpreters). On Ubuntu install it via the deadsnakes PPA:
-  `add-apt-repository ppa:deadsnakes/ppa && apt install python3.11`.
+- **Python ≥ 3.12** (decision D3). Production uses pyenv:
+  `deploy/update.sh` expects pyenv + pyenv-virtualenv, verifies a pinned
+  Python `3.12.x` base (`3.12.13` by default), and creates/reuses a pyenv
+  virtualenv named `lidaldi`.
 - Python packages: see `requirements.txt` (Scrapy, BeautifulSoup4, Pillow, pywebpush).
 - **Node LTS** — only to build the frontend (`frontend/`) and run e2e tests; not needed at runtime on the server.
 - **Operating system:** Linux / BSD / macOS. `sync_server.py`, `sync_store.py`
@@ -123,7 +124,7 @@ Run the tests (containerized — identical to CI):
 
 ```bash
 docker compose run --rm test make test
-# or, on a host with python3 >= 3.11, Node LTS and Playwright browsers:
+# or, on a host with pyenv Python 3.12.13, Node LTS and Playwright browsers:
 make test
 ```
 
@@ -181,9 +182,9 @@ sudo ./deploy/update.sh --dry-run    # prints per-file diffs + action plan, muta
 sudo ./deploy/update.sh              # backs up live configs + SYNC_DIR, then applies
 ```
 
-The installer verifies Python ≥ 3.11 and aborts with the deadsnakes message
-otherwise; it never generates, moves or rewrites the VAPID keypair, and never
-touches `offers.json`/`meta.json` in the web root. Full operator procedures
+The installer verifies pyenv and the pinned Python `3.12.x` base, then
+creates/reuses the `lidaldi` pyenv virtualenv; it never generates, moves or rewrites the VAPID
+keypair, and never touches `offers.json`/`meta.json` in the web root. Full operator procedures
 (backups, VAPID handling, service-worker cache-name bumps, ZAP scans) are in
 [docs/operations.md](docs/operations.md).
 

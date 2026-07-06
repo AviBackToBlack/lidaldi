@@ -163,9 +163,9 @@ def test_no_config_at_all_errors(tmp_path, monkeypatch):
 
 
 def test_python_version_guard_message():
-    err = config_loader._python_version_error((3, 10, 12))
+    err = config_loader._python_version_error((3, 10, 20))
     assert err is not None
-    assert "Python >= 3.11" in err
-    assert "3.10.12" in err
-    assert config_loader._python_version_error((3, 11, 0)) is None
+    assert "Python >= 3.12" in err
+    assert "3.10.20" in err
+    assert config_loader._python_version_error((3, 12, 0)) is None
     assert config_loader._python_version_error(sys.version_info) is None

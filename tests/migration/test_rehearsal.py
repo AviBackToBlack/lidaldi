@@ -39,16 +39,24 @@ def test_dry_run_previews_plan_without_mutation(cutover):
 
 
 def test_python_check_enforced_before_anything_else(cutover):
-    # D3: update.sh aborts on <3.11 with the deadsnakes hint (covered in
-    # depth by tests/installer/test_update_sh.py::test_python_below_311_aborts;
+    # D3: update.sh aborts when the requested pyenv Python is missing (covered
+    # in depth by tests/installer/test_update_sh.py::test_missing_pyenv_python_aborts;
     # here we just pin the message contract the runbook references).
     v = cutover["vps"]
+    bad_conf = v["conf"].with_name("install.bad-python.conf")
+    bad_conf.write_text(
+        v["conf"].read_text().replace(
+            'PYENV_PYTHON_VERSION="3.12.13"',
+            'PYENV_PYTHON_VERSION="3.10.0"',
+        )
+    )
     proc = run(
         ["bash", str(v["repo"] / "deploy" / "update.sh"),
-         "--config", str(v["conf"]), "--dry-run"],
-        env={"PYTHON": "/bin/false"}, check=False,
+         "--config", str(bad_conf), "--dry-run"],
+        check=False,
     )
     assert proc.returncode != 0
+    assert "pyenv Python 3.10.0 is not installed" in proc.stderr
 
 
 # --- Step 3: apply — backup precedes any mutation --------------------------

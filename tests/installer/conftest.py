@@ -12,6 +12,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,46 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UPDATE_SH = REPO_ROOT / "deploy" / "update.sh"
 MERGE_PY = REPO_ROOT / "deploy" / "merge_config.py"
+PYENV_PYTHON_VERSION = "3.12.13"
+
+
+def create_fake_pyenv(root: Path):
+    """Create a minimal pyenv/pyenv-virtualenv shim for installer tests."""
+    pyenv_root = root / "pyenv"
+    bin_dir = pyenv_root / "bin"
+    versions = pyenv_root / "versions"
+    base = versions / PYENV_PYTHON_VERSION
+    bin_dir.mkdir(parents=True)
+    (base / "bin").mkdir(parents=True)
+    os.symlink(sys.executable, base / "bin" / "python")
+    shim = bin_dir / "pyenv"
+    shim.write_text(
+        "#!/bin/bash\n"
+        "set -euo pipefail\n"
+        'root="${PYENV_ROOT:?}"\n'
+        'cmd="${1:-}"\n'
+        "case \"$cmd\" in\n"
+        "  root)\n"
+        "    printf '%s\\n' \"$root\"\n"
+        "    ;;\n"
+        "  versions)\n"
+        "    find \"$root/versions\" -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | sort\n"
+        "    ;;\n"
+        "  virtualenv)\n"
+        "    if [ \"${2:-}\" = \"--help\" ]; then echo 'usage: pyenv virtualenv VERSION NAME'; exit 0; fi\n"
+        "    base=\"$2\"; name=\"$3\"\n"
+        "    \"$root/versions/$base/bin/python\" -m venv \"$root/versions/$name\"\n"
+        "    ;;\n"
+        "  exec)\n"
+        "    shift\n"
+        "    exe=\"$1\"; shift\n"
+        "    exec \"$root/versions/${PYENV_VERSION:?}/bin/$exe\" \"$@\"\n"
+        "    ;;\n"
+        "  *) echo \"fake pyenv: unsupported $cmd\" >&2; exit 2 ;;\n"
+        "esac\n"
+    )
+    shim.chmod(0o755)
+    return pyenv_root
 
 
 @pytest.fixture()
@@ -30,7 +71,7 @@ def sandbox(tmp_path):
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     for f in ("config.toml.sample", ".env.sample", "requirements.txt"):
         shutil.copy2(REPO_ROOT / f, repo / f)
-    # Minimal fake requirements so the venv step doesn't hit the network.
+    # Minimal fake requirements so the pyenv virtualenv step doesn't hit the network.
     (repo / "requirements.txt").write_text("")
     dist = repo / "frontend" / "dist"
     dist.mkdir(parents=True)
@@ -38,6 +79,7 @@ def sandbox(tmp_path):
     (dist / "app.js").write_text("console.log('fake');\n")
 
     root = tmp_path / "sys"
+    pyenv_root = create_fake_pyenv(tmp_path)
     paths = {
         "APP_ROOT": root / "opt" / "lidaldi",
         "WEB_ROOT": root / "var" / "www" / "lidaldi",
@@ -53,9 +95,12 @@ def sandbox(tmp_path):
     lines = [f'{k}="{v}"' for k, v in paths.items()]
     lines += [f'SERVICE_USER="{os.environ.get("USER", "root")}"',
               "MANAGE_USER=0",
-              f'REPO_DIR="{repo}"']
+              f'REPO_DIR="{repo}"',
+              f'PYENV_ROOT="{pyenv_root}"',
+              f'PYENV_PYTHON_VERSION="{PYENV_PYTHON_VERSION}"']
     conf.write_text("\n".join(lines) + "\n")
-    return {"repo": repo, "conf": conf, "root": root, **paths}
+    return {"repo": repo, "conf": conf, "root": root,
+            "PYENV_ROOT": pyenv_root, **paths}
 
 
 def run_update(sandbox, *args, env=None, check=True):

@@ -3,7 +3,7 @@
 # LIDALDI idempotent installer/updater (T10, arch doc §6.5).
 #
 # Create-or-update: service user, cron, logrotate, systemd unit, nginx
-# snippet, web root, venv/deps, sample->real config merge. Every step
+# snippet, web root, pyenv virtualenv/deps, sample->real config merge. Every step
 # checks current state and only registers an action on drift; a second run
 # on an already-installed system is a no-op (no backup, no mutation).
 #
@@ -36,20 +36,12 @@ done
 log() { printf '%s\n' "$*"; }
 die() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 
-# --- Preflight: Python >= 3.11 (decision D3) ---------------------------------
-PYTHON="${PYTHON:-python3}"
-if ! command -v "$PYTHON" >/dev/null 2>&1; then
-    die "python3 not found. lidaldi requires Python >= 3.11 (D3)."
-fi
-if ! "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
-    die "Python >= 3.11 required (D3); found $("$PYTHON" --version 2>&1). \
-On Ubuntu install python3.11 via the deadsnakes PPA (add-apt-repository \
-ppa:deadsnakes/ppa) and re-run with PYTHON=python3.11."
-fi
-
 # --- Local config --------------------------------------------------------
 [ -f "$CONF_FILE" ] || die "missing $CONF_FILE — copy \
 $SCRIPT_DIR/install.local.conf.sample to install.local.conf and edit it."
+# pyenv uses these names for shell selection/activation. Drop inherited values
+# before sourcing local config so operator shells and sudo -E cannot steer deploys.
+unset PYENV_VERSION PYENV_VIRTUALENV
 # shellcheck disable=SC1090
 . "$CONF_FILE"
 
@@ -66,8 +58,50 @@ LOGROTATE_DIR="${LOGROTATE_DIR:-/etc/logrotate.d}"
 SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 NGINX_SNIPPET_DIR="${NGINX_SNIPPET_DIR:-/etc/nginx/snippets}"
 MANAGE_USER="${MANAGE_USER:-1}"
+PYENV_ROOT="${PYENV_ROOT:-/opt/pyenv}"
+PYENV_PYTHON_VERSION="${PYENV_PYTHON_VERSION:-3.12.13}"
+PYENV_VIRTUALENV_NAME="${PYENV_VIRTUALENV_NAME:-lidaldi}"
 
-VENV_DIR="$APP_ROOT/.venv"
+# --- Preflight: pyenv + Python runtime (decision D3) -------------------------
+if [ -x "$PYENV_ROOT/bin/pyenv" ]; then
+    PYENV_BIN="$PYENV_ROOT/bin/pyenv"
+elif command -v pyenv >/dev/null 2>&1; then
+    PYENV_BIN="$(command -v pyenv)"
+    PYENV_ROOT="$("$PYENV_BIN" root 2>/dev/null || true)"
+    [ -n "$PYENV_ROOT" ] || die "pyenv found on PATH but 'pyenv root' failed; set PYENV_ROOT in install.local.conf."
+else
+    die "pyenv not found. Install pyenv at $PYENV_ROOT or put pyenv on PATH; lidaldi expects Python $PYENV_PYTHON_VERSION from pyenv."
+fi
+export PYENV_ROOT
+export PATH="$PYENV_ROOT/bin:$PATH"
+
+pyenv_versions() {
+    PYENV_VERSION= "$PYENV_BIN" versions --bare 2>/dev/null || true
+}
+
+pyenv_has_version() {
+    pyenv_versions | grep -Fx "$1" >/dev/null 2>&1
+}
+
+python_matches_version() {
+    "$1" -c 'import sys; sys.exit(0 if sys.version_info[:3] == tuple(map(int, sys.argv[1].split("."))) else 1)' "$2"
+}
+
+python_base() {
+    PYENV_VERSION="$PYENV_PYTHON_VERSION" "$PYENV_BIN" exec python "$@"
+}
+
+if ! pyenv_has_version "$PYENV_PYTHON_VERSION"; then
+    die "pyenv Python $PYENV_PYTHON_VERSION is not installed. Install it with: PYENV_ROOT=$PYENV_ROOT pyenv install $PYENV_PYTHON_VERSION"
+fi
+if ! PYENV_VERSION= "$PYENV_BIN" virtualenv --help >/dev/null 2>&1; then
+    die "pyenv-virtualenv plugin not found. Install it under $PYENV_ROOT/plugins/pyenv-virtualenv."
+fi
+if ! python_base -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)'; then
+    die "Python >= 3.12 required (D3); pyenv $PYENV_PYTHON_VERSION reports $(python_base --version 2>&1)."
+fi
+
+VENV_DIR="$PYENV_ROOT/versions/$PYENV_VIRTUALENV_NAME"
 LIVE_TOML="$APP_ROOT/config.toml"
 LIVE_ENV="$APP_ROOT/.env"
 
@@ -123,18 +157,19 @@ apply_action() {
             install -D -m "${f[3]}" "${f[1]}" "${f[2]}"
             if [ "${f[4]:-}" = "own" ]; then maybe_chown "${f[2]}"; fi
             ;;
-        synctree) # synctree <src> <dst> — live-config/key/data patterns
+        synctree) # synctree <src> <dst> — live-config/key/data/rendered patterns
             # (config.py, settings.py, *.pem, *.json) are never copied over
-            # nor pruned, mirroring the drift check. Files deleted from the
-            # repo are pruned so the sync converges to a no-op.
+            # nor pruned, mirroring the drift check. run_scrapers.sh is
+            # rendered separately with deployment paths. Files deleted from
+            # the repo are pruned so the sync converges to a no-op.
             mkdir -p "${f[2]}"
             (cd "${f[1]}" && find . -type f ! -path '*/__pycache__/*' \
                 ! -name '*.pyc' ! -name 'config.py' ! -name 'settings.py' \
-                ! -name '*.pem' ! -name '*.json' \
+                ! -name '*.pem' ! -name '*.json' ! -name 'run_scrapers.sh' \
                 -exec cp -a --parents {} "${f[2]}/" \;)
             (cd "${f[2]}" && find . -type f ! -path '*/__pycache__/*' \
                 ! -name '*.pyc' ! -name 'config.py' ! -name 'settings.py' \
-                ! -name '*.pem' ! -name '*.json' -print0 |
+                ! -name '*.pem' ! -name '*.json' ! -name 'run_scrapers.sh' -print0 |
                 while IFS= read -r -d '' p; do
                     [ -f "${f[1]}/$p" ] || rm -f -- "$p"
                 done)
@@ -153,15 +188,16 @@ apply_action() {
             maybe_chown "${f[2]}"
             ;;
         venv)
-            [ -x "$VENV_DIR/bin/python" ] || "$PYTHON" -m venv "$VENV_DIR"
+            if ! pyenv_has_version "$PYENV_VIRTUALENV_NAME"; then
+                PYENV_VERSION="$PYENV_PYTHON_VERSION" "$PYENV_BIN" virtualenv "$PYENV_PYTHON_VERSION" "$PYENV_VIRTUALENV_NAME"
+            fi
             "$VENV_DIR/bin/pip" install --quiet --upgrade pip
             "$VENV_DIR/bin/pip" install --quiet -r "$REPO_DIR/requirements.txt"
             printf '%s' "$REQ_SUM" > "$REQ_STAMP"
-            maybe_chown "$VENV_DIR"
             ;;
         merge) # merge <mode> <sample> <live>
             local rc=0
-            "$PYTHON" "$SCRIPT_DIR/merge_config.py" \
+            python_base "$SCRIPT_DIR/merge_config.py" \
                 --mode "${f[1]}" --sample "${f[2]}" --live "${f[3]}" || rc=$?
             [ "$rc" = "0" ] || [ "$rc" = "3" ] || die "merge_config.py failed (exit $rc)"
             ;;
@@ -203,13 +239,14 @@ step_tree() { # step_tree <label> <src> <dst>
     local label="$1" src="$2" dst="$3"
     if [ -d "$dst" ] && diff -rq -x '__pycache__' -x '*.pyc' \
             -x 'config.py' -x 'settings.py' -x '*.pem' -x '*.json' \
-            "$src" "$dst" >/dev/null 2>&1; then
+            -x 'run_scrapers.sh' "$src" "$dst" >/dev/null 2>&1; then
         ok "$label up to date ($dst)"
     else
         if [ -d "$dst" ]; then
             log "DIFF  $label:"
             diff -rq -x '__pycache__' -x '*.pyc' -x 'config.py' \
-                -x 'settings.py' -x '*.pem' -x '*.json' "$src" "$dst" 2>&1 || true
+                -x 'settings.py' -x '*.pem' -x '*.json' \
+                -x 'run_scrapers.sh' "$src" "$dst" 2>&1 || true
         fi
         plan "sync $label -> $dst" synctree "$src" "$dst"
     fi
@@ -245,6 +282,9 @@ render() { # render <src> <dst>: substitute deployment paths into templates
     sed \
         -e "s|/path/to/run_scrapers.sh|$APP_ROOT/scraper/run_scrapers.sh|g" \
         -e "s|/path/to/venv|$VENV_DIR|g" \
+        -e "s|/path/to/scrapy|$APP_ROOT/scraper|g" \
+        -e "s|/path/to/processing|$APP_ROOT/offers_processing|g" \
+        -e "s|/path/to/images/folder|$APP_ROOT/data/images|g" \
         -e "s|/opt/your-website-url/offers_processing|$APP_ROOT/offers_processing|g" \
         -e "s|/opt/your-website-url/data/sync|$SYNC_DIR|g" \
         -e "s|/var/log/lidaldi|$LOG_DIR|g" \
@@ -260,18 +300,22 @@ render() { # render <src> <dst>: substitute deployment paths into templates
 
 step_file() { # step_file <label> <rendered-src> <dst>
     local label="$1" src="$2" dst="$3"
+    local mode="${4:-0644}"
     if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
         ok "$label up to date ($dst)"
         return 0
     fi
     log "DIFF  $label ($dst):"
     diff -u "$dst" "$src" 2>/dev/null || true
-    plan "install $label -> $dst" copyfile "$src" "$dst" 0644
+    plan "install $label -> $dst" copyfile "$src" "$dst" "$mode"
     return 1
 }
 
 render "$REPO_DIR/cron.d/lidaldi" "$TMP_DIR/cron"
 step_file cron "$TMP_DIR/cron" "$CRON_DIR/lidaldi" || true
+
+render "$REPO_DIR/scraper/run_scrapers.sh" "$TMP_DIR/run_scrapers"
+step_file run_scrapers "$TMP_DIR/run_scrapers" "$APP_ROOT/scraper/run_scrapers.sh" 0755 || true
 
 render "$REPO_DIR/logrotate.d/lidaldi" "$TMP_DIR/logrotate"
 step_file logrotate "$TMP_DIR/logrotate" "$LOGROTATE_DIR/lidaldi" || true
@@ -282,14 +326,19 @@ step_file systemd_unit "$TMP_DIR/unit" "$SYSTEMD_DIR/lidaldi-sync.service" || SE
 render "$REPO_DIR/nginx/lidaldi-sync-proxy.conf" "$TMP_DIR/nginx"
 step_file nginx_snippet "$TMP_DIR/nginx" "$NGINX_SNIPPET_DIR/lidaldi-sync-proxy.conf" || true
 
-# 6. venv + deps (re-pip only when requirements.txt changes).
+# 6. pyenv virtualenv + deps (re-pip only when requirements.txt changes).
 REQ_STAMP="$VENV_DIR/.requirements.sha256"
 REQ_SUM="$(sha256sum "$REPO_DIR/requirements.txt" | cut -d' ' -f1)"
-if [ -x "$VENV_DIR/bin/python" ] && [ -f "$REQ_STAMP" ] && \
+if pyenv_has_version "$PYENV_VIRTUALENV_NAME" && [ -x "$VENV_DIR/bin/python" ] && \
+        ! python_matches_version "$VENV_DIR/bin/python" "$PYENV_PYTHON_VERSION"; then
+    die "pyenv virtualenv $PYENV_VIRTUALENV_NAME exists at $VENV_DIR but is not based on Python $PYENV_PYTHON_VERSION; recreate it with: PYENV_ROOT=$PYENV_ROOT pyenv virtualenv-delete $PYENV_VIRTUALENV_NAME && PYENV_ROOT=$PYENV_ROOT pyenv virtualenv $PYENV_PYTHON_VERSION $PYENV_VIRTUALENV_NAME"
+fi
+if pyenv_has_version "$PYENV_VIRTUALENV_NAME" && [ -x "$VENV_DIR/bin/python" ] && \
+        [ -f "$REQ_STAMP" ] && \
         [ "$(cat "$REQ_STAMP")" = "$REQ_SUM" ]; then
-    ok "venv up to date ($VENV_DIR)"
+    ok "pyenv virtualenv up to date ($PYENV_VIRTUALENV_NAME -> $VENV_DIR)"
 else
-    plan "create/refresh venv $VENV_DIR + pip install -r requirements.txt" venv
+    plan "create/refresh pyenv virtualenv $PYENV_VIRTUALENV_NAME from $PYENV_PYTHON_VERSION + pip install -r requirements.txt" venv
 fi
 
 # 7. Config: create-from-sample when missing, else sample->real merge
@@ -302,7 +351,7 @@ step_config() { # step_config <mode> <sample> <live> <mode-bits>
         return
     fi
     local rc=0
-    "$PYTHON" "$SCRIPT_DIR/merge_config.py" \
+    python_base "$SCRIPT_DIR/merge_config.py" \
         --mode "$mode" --sample "$sample" --live "$live" --dry-run || rc=$?
     case "$rc" in
         0) ok "config $live in sync with sample" ;;

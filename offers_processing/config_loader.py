@@ -28,12 +28,12 @@ import warnings
 
 def _python_version_error(version_info):
     """Return an error message if the interpreter is too old, else None."""
-    if version_info < (3, 11):
+    if version_info < (3, 12):
         found = ".".join(str(p) for p in version_info[:3])
         return (
-            "lidaldi requires Python >= 3.11 (stdlib tomllib, decision D3); "
-            f"found {found}. On Ubuntu, install python3.11 via the deadsnakes "
-            "PPA and re-run with it."
+            "lidaldi requires Python >= 3.12 (decision D3); "
+            f"found {found}. Use the pyenv-managed lidaldi runtime "
+            "(PYENV_VERSION=lidaldi python) or another Python >= 3.12."
         )
     return None
 
@@ -42,7 +42,7 @@ _err = _python_version_error(sys.version_info)
 if _err:
     sys.exit(_err)
 
-import tomllib  # noqa: E402  (guarded import: requires Python >= 3.11)
+import tomllib  # noqa: E402  (guarded import: requires Python >= 3.12)
 
 
 class ConfigError(Exception):
