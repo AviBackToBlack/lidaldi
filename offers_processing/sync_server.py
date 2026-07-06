@@ -16,6 +16,7 @@ running on Windows is not supported. See README.md.
 """
 
 import json
+import math
 import os
 import re
 import sys
@@ -297,7 +298,8 @@ class SyncHandler(BaseHTTPRequestHandler):
             return self._err(400, "Expected object")
 
         lv = body.get("lastVisit", 0)
-        if isinstance(lv, bool) or not isinstance(lv, (int, float)) or lv < 0:
+        if (isinstance(lv, bool) or not isinstance(lv, (int, float))
+                or not math.isfinite(lv) or lv < 0):
             return self._err(400, "Invalid lastVisit")
         lv = int(lv)
 

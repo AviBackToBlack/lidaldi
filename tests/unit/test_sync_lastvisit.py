@@ -6,6 +6,7 @@ Integration tests against a real sync_server in a thread + temp SYNC_DIR
 
 import json
 import time
+import urllib.error
 import urllib.request
 
 
@@ -65,8 +66,6 @@ def test_post_lastvisit_omitted_does_not_regress(server):
 
 
 def _post_expect_400(server, body):
-    import urllib.error
-
     req = urllib.request.Request(
         f"{server}/api/sync/CODE01",
         data=json.dumps(body).encode(),
@@ -88,6 +87,22 @@ def test_post_bool_lastvisit_rejected(server):
     """JSON true must not be coerced to lastVisit=1."""
     _post_expect_400(server, {"lastVisit": True})
     _post_expect_400(server, {"lastVisit": False})
+
+
+def test_post_nonfinite_lastvisit_rejected(server):
+    """json.loads accepts NaN/Infinity; they must be a 400, not a 500."""
+    for raw in (b'{"lastVisit": NaN}', b'{"lastVisit": Infinity}'):
+        req = urllib.request.Request(
+            f"{server}/api/sync/CODE01",
+            data=raw,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(req)
+            assert False, "expected 400"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
 
 
 # ---------------------------------------------------------------------------
