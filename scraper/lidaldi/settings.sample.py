@@ -145,6 +145,10 @@ FEED_EXPORT_ENCODING = "utf-8"
 
 # ImagesPipeline configuration
 IMAGES_STORE = _cfg.IMAGES_STORE
+if not IMAGES_STORE:
+    raise RuntimeError(
+        "config.toml: [scraper] images_store is required to run the scraper"
+    )
 IMAGES_EXPIRES = _cfg.IMAGES_EXPIRES
 
 # Feeds configuration
