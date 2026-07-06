@@ -105,7 +105,13 @@
         pushEnabled = false;
         return;
       }
-      if (!sync.code) generateCode();
+      // Ensure a code exists without pushProfile's fire-and-forget POST:
+      // postPushSubscription below already sends alerts + tombstones, and a
+      // concurrent subscription-less POST could race it on the server.
+      if (!sync.code) {
+        sync.setCode(generateSyncCode());
+        syncMessage = "";
+      }
       const result = await subscribePush(vapidPublicKey);
       if (!result.ok) {
         pushMessage = {
