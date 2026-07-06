@@ -139,12 +139,6 @@ def _write_process_offers_inputs(po):
     ):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
-    with open(po.config.INDEX_TEMPLATE, "w", encoding="utf-8") as f:
-        f.write(
-            "<script>var offers=%%SPECIAL_OFFERS_DATA%%;"
-            "var meta=%%SPECIAL_OFFERS_META_DATA%%;</script>"
-            '<body data-vapid="%%VAPID_PUBLIC_KEY%%"></body>'
-        )
 
 
 def test_process_offers_metric_parity(po, tmp_path, monkeypatch):

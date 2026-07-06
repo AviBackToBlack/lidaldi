@@ -36,12 +36,6 @@ PROM_TEXTFILE_DIR = None
 OFFERS_JSON = os.path.join(WEBSITE_ROOT_DIR, "offers.json")
 META_JSON = os.path.join(WEBSITE_ROOT_DIR, "meta.json")
 
-# index.html paths
-INDEX_TEMPLATE = os.path.join(WEBSITE_ROOT_DIR, "index.html.tpl")
-INDEX_HTML = os.path.join(WEBSITE_ROOT_DIR, "index.html")
-INDEX_NEW_HTML = os.path.join(WEBSITE_ROOT_DIR, "index.new.html")
-INDEX_OLD_HTML = os.path.join(WEBSITE_ROOT_DIR, "index.old.html")
-
 # Telegram
 TELEGRAM_BOT_TOKEN = "your-telegram-bot-token"
 TELEGRAM_CHAT_ID = "your-chat-id"

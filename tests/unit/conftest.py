@@ -130,8 +130,6 @@ def po(tmp_path, monkeypatch):
     monkeypatch.setattr(cfg, "PROM_TEXTFILE_DIR", None, raising=False)
     monkeypatch.setattr(cfg, "OFFERS_JSON", str(webroot / "offers.json"), raising=False)
     monkeypatch.setattr(cfg, "META_JSON", str(webroot / "meta.json"), raising=False)
-    monkeypatch.setattr(cfg, "INDEX_TEMPLATE", str(webroot / "index.html.tpl"), raising=False)
-    monkeypatch.setattr(cfg, "INDEX_HTML", str(webroot / "index.html"), raising=False)
     monkeypatch.setattr(cfg, "VAPID_PUBLIC_KEY", "test-vapid-public-key", raising=False)
     monkeypatch.setattr(cfg, "TELEGRAM_BOT_TOKEN", "dummy", raising=False)
     monkeypatch.setattr(cfg, "TELEGRAM_CHAT_ID", "dummy", raising=False)
