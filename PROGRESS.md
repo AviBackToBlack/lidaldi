@@ -55,9 +55,15 @@
 | T0 design brief → operator runs Claude Design | orchestrator + operator | — | brief authored (`DESIGN_BRIEF.md`); awaiting exports | — | — |
 | T1 test harness & CI skeleton | W4 QA/DevX | devin-3c17963f6b0c42009df40dbc007b5b3f | **merged + verified** | [#1](https://github.com/AviBackToBlack/lidaldi/pull/1), [#2](https://github.com/AviBackToBlack/lidaldi/pull/2) (CI fix) | **PASS** (devin-63366bad21f44f0d96103ab408899cae) |
 | T2 stable ids + first_seen + offers.json | W1 Backend | devin-46236a21665148f09c73fedd3e2d2d56 | **merged + verified** | [#3](https://github.com/AviBackToBlack/lidaldi/pull/3), [#4](https://github.com/AviBackToBlack/lidaldi/pull/4) (corrupt-store quarantine follow-up) | **PASS** (devin-c769b51ac7984751bc983bc60f579059); low finding fixed in #4 |
-| T3 aggregate push + ledger | W1 Backend | devin-524c3844e7f24dc096563200a47eb501 | PR open, CI green (worker suspended: quota, T4 not started) | [#6](https://github.com/AviBackToBlack/lidaldi/pull/6) | verifying (devin-8d027ed90ac849cb96470858770d50a4) |
-| T4 sync lastVisit semantics | W1 Backend | devin-524c3844e7f24dc096563200a47eb501 | pending (same worker, resumes on quota) | — | — |
+| T3 aggregate push + ledger | W1 Backend | devin-524c3844e7f24dc096563200a47eb501 | **merged + verified** (operator merged ahead of verdict) | [#6](https://github.com/AviBackToBlack/lidaldi/pull/6) | **PASS** (devin-8d027ed90ac849cb96470858770d50a4) |
+| T4 sync lastVisit semantics | W1 Backend | devin-524c3844e7f24dc096563200a47eb501 | resumed, in progress | — | — |
 | T5 frontend scaffold | W2 Frontend | devin-2aef11583e8c4af59aaa124b8c538853 | **merged + verified** | [#5](https://github.com/AviBackToBlack/lidaldi/pull/5) | **PASS** (devin-163562d42b0a48fdb7200ca6c2819743) |
-| T6–T15 | per DAG | — | pending | — | — |
+| T7 PWA manifest/icons/sw.js | W2 Frontend | devin-7bbc3b7f20034045b4c1ae78e944dae7 | **merged** (operator) | [#9](https://github.com/AviBackToBlack/lidaldi/pull/9) | verifying (devin-7e31995bf07a45d69b058cabf42702f0) |
+| T9 TOML/.env config migration | W3 DevOps | devin-a64006dcea1e424382abeef855582343 | **merged** (operator) | [#7](https://github.com/AviBackToBlack/lidaldi/pull/7) | verifying (devin-beedc124b5f745de908083119d2f7dbe) |
+| T6 (blocked on T0 exports), T8, T10–T15 | per DAG | — | pending | — | — |
+
+Frozen contracts so far: offers.json schema (T2 PR #3) · push payload + alertMatches (T3 PR #6) · config key map legacy→TOML/.env (T9 PR #7) · push.ts API for T6 UI wiring (T7 PR #9).
+
+T3 verifier notes: N6 (sw.js try/catch) deferred to T7 as planned; per-endpoint ledger shares MAX_NOTIFIED=2000 cap across endpoints (low — heavy multi-device profiles could evict live entries); endpoint hash = sha256[:16] (fine).
 
 T2 verifier notes (info): store shape id → {first_seen, last_seen} (GC needs last_seen; loader accepts legacy flat); sanity-ratio suppression still marks offers seen (pre-existing semantics); write_atomic has no fsync (benign — reseed path guarded).
