@@ -137,3 +137,34 @@ def test_invalid_alerts_rejected(server):
         assert False, "expected 400"
     except urllib.error.HTTPError as e:
         assert e.code == 400
+
+
+def test_rate_limit_429_once_per_ip_limit_exceeded(server, monkeypatch):
+    """Real limiter behaviour: 429 only after RATE_MAX requests per IP.
+
+    The shared `server` fixture raises RATE_MAX so unrelated tests never
+    trip the limiter; this test scopes it back down and uses fresh
+    X-Forwarded-For client IPs (trusted from loopback) so it is isolated
+    from requests made by other tests.
+    """
+    import sync_server
+
+    monkeypatch.setattr(sync_server, "RATE_MAX", 5)
+
+    def _get_as(ip):
+        req = urllib.request.Request(
+            f"{server}/api/sync/CODE01", headers={"X-Forwarded-For": ip}
+        )
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    ip = "203.0.113.9"
+    for i in range(5):
+        assert _get_as(ip) == 200, f"request {i + 1} should be under the limit"
+    assert _get_as(ip) == 429
+    assert _get_as(ip) == 429
+    # Other client IPs are unaffected.
+    assert _get_as("203.0.113.10") == 200
