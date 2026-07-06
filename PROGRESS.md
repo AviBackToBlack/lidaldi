@@ -63,10 +63,12 @@
 | T10 installer/updater | W3 DevOps | devin-4e04a904db114eac9d1555e0cd749999 | **merged + verified** (operator merged ahead of verdict) | [#12](https://github.com/AviBackToBlack/lidaldi/pull/12) | **PASS** (devin-4e64c877a50745ad933f85a6c512dbd7); low: synctree cp -a never removes repo-deleted files; no automated restore (idempotent re-run is recovery) — T15 rehearsal notes |
 | T11 .prom metrics parity | W1 Backend | devin-0a059fbea9b74929bca3a4b4b9f6ec22 | **merged + verified** (metric inventory frozen in PR desc → T14) | [#11](https://github.com/AviBackToBlack/lidaldi/pull/11) | **PASS** (devin-274e49ac82364a2fa4652b3f418c1c8a); info: host .venv mount breaks containerized run (harness quirk) |
 | T13 k6 load + security tiers | W4 QA/DevX | devin-1306aaa475a7474aa4ec6d4d258e6e0f | **merged + verified** — initial FAIL (rate-limit coverage falsely claimed) fixed in follow-up [#15](https://github.com/AviBackToBlack/lidaldi/pull/15) (real 429 test, med<50ms threshold, scoped zap teardown), re-verify PASS | [#13](https://github.com/AviBackToBlack/lidaldi/pull/13), [#15](https://github.com/AviBackToBlack/lidaldi/pull/15) | **PASS on re-verify** (devin-42b7edcb4e5e4a198fe82776ee486598) |
-| T6 full frontend UI | W2 Frontend | devin-331be1bc188348fea9367b2906fc7e0e | PR open, worker finishing CI check | [#14](https://github.com/AviBackToBlack/lidaldi/pull/14) | — |
+| T6 full frontend UI | W2 Frontend | devin-331be1bc188348fea9367b2906fc7e0e | PR open, CI green (deviations stated: popover placement, grid minmax 224/158px vs 250px) | [#14](https://github.com/AviBackToBlack/lidaldi/pull/14) | verifying (devin-614bc48c27234140871c1630cd4da681) |
 | T14 docs refresh | SWE-1.6 docs | devin-f495eee3efd5495791d803724ebc2e4f | PR open, CI green (docs-only; T6 UI section is a marked placeholder) | [#16](https://github.com/AviBackToBlack/lidaldi/pull/16) | verifying (devin-ab03da8daf8d440bb11d99a27ae72311) |
-| T15 migration rehearsal | W3 DevOps | devin-358afab2acd945e79e10f2b82f8e3ccf | dispatched | — | — |
+| T15 migration rehearsal | W3 DevOps | devin-358afab2acd945e79e10f2b82f8e3ccf | in progress — suspended on quota, resume on refresh | — | — |
 | T8 a11y (after T6) | per DAG | — | pending | — | — |
+
+T6 worker follow-ups: pre-existing flaky [chromium-push] pwa-push.spec.ts (5s poll timeout; also failed on refactor base) — consider longer poll in T7 spec; push unsubscribe is local-only (no removal op in frozen sync contract; sender should prune on 404/410) — candidate contract follow-up.
 
 T7 verifier follow-ups (for T6/T10): push payload icon `/img/lidaldi.png` is not shipped by the frontend build — add it to `frontend/public/img/` (T6); static cache `lidaldi-static-v1` needs a cache-name bump discipline when icons/manifest change on deploy (T10/T14 note).
 
