@@ -38,14 +38,10 @@ test-e2e: tests/e2e/node_modules/.ok
 	cd tests/e2e && npx playwright test
 
 test-load:
-	# k6 placeholder vs the sync API; skipped unless the server is up (and k6 installed).
-	@if ! command -v k6 >/dev/null 2>&1; then \
-		echo "test-load: k6 not installed — skipping"; \
-	elif ! curl -sf -o /dev/null "$${SYNC_API_URL:-http://localhost:8080}/health" 2>/dev/null; then \
-		echo "test-load: sync API not reachable at $${SYNC_API_URL:-http://localhost:8080} — skipping"; \
-	else \
-		k6 run tests/load/sync_api.js; \
-	fi
+	# k6 load tier (T13) vs a real sync_server booted with a temp SYNC_DIR.
+	# FAILS (never skips) when k6 or the server is unavailable; k6 is pinned
+	# and installed by tests/load/install-k6.sh (baked into the test image).
+	bash tests/load/run.sh
 
 test-security: $(VENV)/.ok
 	$(VENV_BIN)/pip-audit -r requirements.txt
@@ -61,6 +57,10 @@ test-security: $(VENV)/.ok
 	fi
 
 test-zap:
-	# Opt-in ZAP baseline scan (D4). NOT part of `make test`.
-	# Set ZAP_TARGET to the URL of a running instance of the site.
-	docker compose --profile zap run --rm zap
+	# Opt-in ZAP baseline scan (D4). NOT part of `make test` or default CI.
+	# Builds the frontend + boots the sync API in compose (zap-target on
+	# :8100), then runs zap-baseline against that origin. Run from a host
+	# with docker compose (not inside the test container). Override the
+	# target with ZAP_TARGET to scan a running instance instead.
+	docker compose --profile zap run --rm zap; \
+	status=$$?; docker compose --profile zap down; exit $$status

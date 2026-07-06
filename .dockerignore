@@ -1,0 +1,8 @@
+# Keep the repo-root build context (docker-compose.yml) small: the image
+# only COPYies tests/load/install-k6.sh.
+.git
+.venv
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
