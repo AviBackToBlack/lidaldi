@@ -21,7 +21,7 @@
 -->
 <nav class="pagination" aria-label="Pagination">
   <button tabindex="-1" disabled={page <= 1} onclick={() => onGoTo(page - 1)}
-    >‹ Prev</button
+    ><span aria-hidden="true">‹</span> Prev</button
   >
   {#each items as item (item)}
     {#if typeof item === "number"}
@@ -31,16 +31,17 @@
         tabindex={item === page ? 0 : -1}
         aria-current={item === page ? "page" : undefined}
         disabled={totalPages === 1}
+        aria-label={`Page ${item}`}
         onclick={() => onGoTo(item)}>{item}</button
       >
     {:else}
-      <span class="ellipsis">…</span>
+      <span class="ellipsis" aria-hidden="true">…</span>
     {/if}
   {/each}
   <button
     tabindex="-1"
     disabled={page >= totalPages}
-    onclick={() => onGoTo(page + 1)}>Next ›</button
+    onclick={() => onGoTo(page + 1)}>Next <span aria-hidden="true">›</span></button
   >
 </nav>
 
@@ -79,7 +80,7 @@
     font-weight: var(--weight-bold);
   }
   .pagination .ellipsis {
-    color: var(--text-faint);
+    color: var(--text-2);
     padding: 0 4px;
   }
   .pagination [disabled] {

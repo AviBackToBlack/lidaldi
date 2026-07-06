@@ -159,6 +159,8 @@
       return;
     }
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    // Never swallow modified arrows (screen-reader / browser shortcuts).
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     if (alertsModalOpen || view === "alerts" || loading || loadError) return;
     const ae = document.activeElement;
     if (ae instanceof HTMLSelectElement || ae instanceof HTMLTextAreaElement) return;
@@ -180,10 +182,11 @@
   offerCount={offers.length}
 />
 
+<main>
 {#if loading}
-  <p class="status">Loading offers…</p>
+  <p class="status" role="status">Loading offers…</p>
 {:else if loadError}
-  <p class="status">Failed to load offers: {loadError}</p>
+  <p class="status" role="alert">Failed to load offers: {loadError}</p>
 {:else if view === "alerts"}
   <AlertsView
     {offers}
@@ -203,23 +206,28 @@
     onOpenAlerts={() => (alertsModalOpen = true)}
   />
 
-  <div class="grid-meta">
-    <span>Showing <b>{filtered.length}</b> offers</span>
+  <div class="grid-meta" aria-live="polite">
+    <span
+      >Showing <b>{filtered.length}</b> offers{#if newAvailable}<span class="sr-only"
+          >, including new offers since your last visit</span
+        >{/if}</span
+    >
     <span class="page-ind">page {pageResult.page} of {pageResult.totalPages}</span>
   </div>
 
   {#if pageResult.items.length}
-    <main class="products-grid">
+    <div class="products-grid">
       {#each pageResult.items as item (item.id)}
         <Card offer={item} isNew={isNew(item, sync.lastVisit)} />
       {/each}
-    </main>
+    </div>
   {:else}
-    <p class="status">No offers match the current filters.</p>
+    <p class="status" role="status">No offers match the current filters.</p>
   {/if}
 
   <Pager page={pageResult.page} totalPages={pageResult.totalPages} onGoTo={goToPage} />
 {/if}
+</main>
 
 <footer class="site-footer">
   Independent price tracker — not affiliated with ALDI or LIDL. Prices and
@@ -242,7 +250,7 @@
     margin: 20px 2px 14px;
     font-size: var(--text-base);
     font-weight: var(--weight-semibold);
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .grid-meta b {
     color: var(--text);
@@ -250,7 +258,7 @@
   .grid-meta .page-ind {
     font-family: var(--font-mono);
     font-size: var(--text-sm);
-    color: var(--text-faint);
+    color: var(--text-2);
   }
 
   /* Bug #1 fix: pure-CSS auto-fill grid; page size mirrors this rule

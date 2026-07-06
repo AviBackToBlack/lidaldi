@@ -68,7 +68,7 @@
   }
 </script>
 
-<div class="filters-row">
+<section class="filters-row" aria-label="Offer filters">
   <div class="segmented" role="group" aria-label="Store">
     {#each STORES as [key, label, cls] (key)}
       <button
@@ -79,29 +79,34 @@
     {/each}
   </div>
   <div class="divider"></div>
-  <div class="availability-filters">
+  <div class="availability-filters" role="group" aria-label="Availability">
     <button
       class="chip"
       class:active={filters.availability === "all"}
+      aria-pressed={filters.availability === "all"}
       onclick={(e) => act(e, () => onFilter({ availability: "all" }))}>All</button
     >
     <button
       class="chip"
       class:active={filters.availability === "inStore"}
+      aria-pressed={filters.availability === "inStore"}
       onclick={(e) => act(e, () => onFilter({ availability: "inStore" }))}
       >Available now</button
     >
     <button
       class="chip"
       class:active={filters.availability === "new"}
+      aria-pressed={filters.availability === "new"}
       disabled={!newAvailable && filters.availability !== "new"}
       onclick={(e) => act(e, () => onFilter({ availability: "new" }))}
-      >✦ New for you</button
+      ><span aria-hidden="true">✦</span> New for you</button
     >
     {#each futureDates as ds (ds)}
       <button
         class="chip date"
         class:active={filters.availability === ds}
+        aria-pressed={filters.availability === ds}
+        aria-label={formatAvailability(ds)}
         onclick={(e) => act(e, () => onFilter({ availability: ds }))}
         >{formatAvailability(ds).replace(/^From /, "")}</button
       >
@@ -164,9 +169,13 @@
     value={searchValue}
     oninput={(e) => handleSearchInput(e.currentTarget.value)}
   />
-  <button class="chip" onclick={(e) => act(e, onReset)}>Reset</button>
-  <button class="btn-dark" onclick={(e) => act(e, onOpenAlerts)}>🔔 Alerts</button>
-</div>
+  <button class="chip" aria-label="Reset filters" onclick={(e) => act(e, onReset)}>Reset</button>
+  <!-- No blur-after-activation here: the modal moves focus and restores
+       it to this button on close. -->
+  <button class="btn-dark" onclick={onOpenAlerts}
+    ><span aria-hidden="true">🔔</span> Alerts</button
+  >
+</section>
 
 <style>
   .filters-row {
