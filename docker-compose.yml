@@ -5,7 +5,9 @@
 services:
   test:
     build:
-      context: .devcontainer
+      # Repo-root context so the Dockerfile can COPY tests/load/install-k6.sh.
+      context: .
+      dockerfile: .devcontainer/Dockerfile
     working_dir: /work
     volumes:
       - .:/work
@@ -15,10 +17,31 @@ services:
     command: sleep infinity
 
   # Opt-in OWASP ZAP baseline scan (D4) — never part of `make test`.
-  # Requires a running target; point ZAP_TARGET at it (compose network or host).
+  # `make test-zap` boots zap-target (built frontend + sync API on one
+  # origin) and scans it; point ZAP_TARGET elsewhere to scan a running
+  # instance instead.
+  zap-target:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    profiles: ["zap"]
+    working_dir: /work
+    volumes:
+      - .:/work
+    command: bash tests/zap/serve_target.sh
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8100/"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+
   zap:
     image: ghcr.io/zaproxy/zaproxy:2.16.1
     profiles: ["zap"]
+    depends_on:
+      zap-target:
+        condition: service_healthy
     volumes:
       - ./tests:/zap/wrk
-    command: zap-baseline.py -t ${ZAP_TARGET:-http://host.docker.internal:8080} -I
+    command: zap-baseline.py -t ${ZAP_TARGET:-http://zap-target:8100} -I
