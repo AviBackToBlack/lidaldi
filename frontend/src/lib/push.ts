@@ -31,24 +31,26 @@ export function isPushSupported(): boolean {
 let swReady: Promise<ServiceWorkerRegistration | null> | null = null;
 
 /**
- * Register the root-scoped worker (stable URL /sw.js). Idempotent; safe to
- * call at boot. Returns null where service workers are unsupported or
- * registration fails.
+ * Register the root-scoped worker (stable URL /sw.js). Idempotent while a
+ * registration is pending or succeeded; a failed attempt is not cached, so
+ * the next call retries. Returns null where service workers are unsupported
+ * or registration fails.
  */
 export function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (swReady) return swReady;
   if (!("serviceWorker" in navigator)) {
-    swReady = Promise.resolve(null);
-    return swReady;
+    return Promise.resolve(null);
   }
-  swReady = navigator.serviceWorker
+  const attempt = navigator.serviceWorker
     .register("/sw.js")
     .then(() => navigator.serviceWorker.ready)
     .catch((e: unknown) => {
       console.warn("SW registration failed:", e);
+      if (swReady === attempt) swReady = null;
       return null;
     });
-  return swReady;
+  swReady = attempt;
+  return attempt;
 }
 
 export async function getExistingPushSubscription(): Promise<PushSubscriptionJSON | null> {

@@ -45,20 +45,23 @@ async function networkFirst(
   request: Request,
   fallbackKey?: string
 ): Promise<Response> {
+  const fromCache = async (): Promise<Response | undefined> =>
+    (await caches.match(request)) ??
+    (fallbackKey ? await caches.match(fallbackKey) : undefined);
+  let response: Response;
   try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(DATA_CACHE);
-      await cache.put(request, response.clone());
-    }
-    return response;
+    response = await fetch(request);
   } catch (err) {
-    const cached =
-      (await caches.match(request)) ??
-      (fallbackKey ? await caches.match(fallbackKey) : undefined);
+    const cached = await fromCache();
     if (cached) return cached;
     throw err;
   }
+  if (response.ok) {
+    const cache = await caches.open(DATA_CACHE);
+    await cache.put(request, response.clone());
+    return response;
+  }
+  return (await fromCache()) ?? response;
 }
 
 self.addEventListener("fetch", (event) => {
