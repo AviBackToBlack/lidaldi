@@ -79,3 +79,5 @@ config.toml
 node_modules/
 tests/e2e/test-results/
 tests/e2e/playwright-report/
+# ZAP baseline scan writes its generated plan into the mounted tests/ dir
+tests/zap.yaml

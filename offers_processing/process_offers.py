@@ -296,6 +296,10 @@ def emit_metrics(summary, status):
          "value": summary.get("lidl_items", 0),
          "help": "LIDL offer count.",
          "type": "gauge"},
+        {"name": "lidaldi_process_offers_first_seen_size",
+         "value": summary.get("first_seen_size", 0),
+         "help": "Entries in the first_seen store after this run.",
+         "type": "gauge"},
     ]
     write_prom_textfile(metrics_file, metrics)
 
@@ -449,6 +453,7 @@ def main():
             it["first_seen"] = entry["first_seen"] if entry else now_ts
 
         summary["new_items"] = len(new_offers)
+        summary["first_seen_size"] = len(first_seen_store)
 
         # Atomic write of new_offers.json
         new_offers_content = json.dumps(new_offers, indent=2, ensure_ascii=False)
