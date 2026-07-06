@@ -1,45 +1,114 @@
-/*
- * Neutral design-token layer. The Claude Design exports (T0) replace the
- * VALUES here; component CSS must reference only these custom properties
- * so the design lands as a token swap, not a rewrite.
- */
+/* ============================================================
+   LIDALDI — design tokens
+   Source of truth: "LIDALDI Mockup.dc.html" (approved design).
+   Light theme on :root; dark theme via [data-theme="dark"]
+   (mirror with @media (prefers-color-scheme: dark) if desired).
+   PWA manifest: "theme_color": "#d9542f", "background_color": "#f7f5f1"
+   ============================================================ */
+
 :root {
-  /* Color */
-  --color-bg: #fafafa;
-  --color-surface: #ffffff;
-  --color-border: #d9d9d9;
-  --color-text: #1a1a1a;
-  --color-text-muted: #666666;
-  --color-primary: #2f6fde;
-  --color-on-primary: #ffffff;
-  --color-accent: #e0a800;
-  --color-danger: #c0392b;
-  --color-badge-new-bg: #2e7d32;
-  --color-badge-new-text: #ffffff;
+  /* --- type ------------------------------------------------ */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Spacing scale */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.5rem;
-  --space-6: 2rem;
+  --text-xs: 11px;      /* badges, labels */
+  --text-sm: 12px;      /* meta, dates */
+  --text-base: 13px;    /* controls, chips */
+  --text-md: 14px;      /* card titles */
+  --text-lg: 17px;      /* modal titles */
+  --text-xl: 24px;      /* page title */
+  --text-price: 18px;   /* card price */
 
-  /* Radii */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-heavy: 800;  /* prices, headings */
 
-  /* Type scale */
-  --font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-size-xs: 0.75rem;
-  --font-size-sm: 0.875rem;
-  --font-size-md: 1rem;
-  --font-size-lg: 1.25rem;
-  --font-size-xl: 1.5rem;
-  --line-height: 1.5;
+  /* --- surfaces & text (warm neutrals) --------------------- */
+  --bg: #f7f5f1;
+  --surface: #ffffff;
+  --surface-sunken: #f1efea;   /* segmented track, chips-off */
+  --surface-hover: #f7f5f1;
 
-  /* Elevation */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --ink: #1f2430;              /* strongest text, dark buttons */
+  --text: #2a2822;             /* titles */
+  --text-2: #5b5f68;           /* control labels */
+  --text-3: #8a857c;           /* meta */
+  --text-faint: #b7b2a8;       /* placeholders */
+
+  --border: #ebe7e0;
+  --border-strong: #e6e2db;    /* control borders */
+  --border-hover: #d8d3c9;
+
+  /* --- site accent (warm terracotta) ------------------------ */
+  --accent: #d9542f;
+  --accent-hover: #c0451f;
+  --accent-active: #a93c1b;
+  --accent-tint: #fbeae3;      /* price pill bg, highlight banner */
+  --accent-text: #c0451f;      /* price text on tint */
+
+  /* --- store identity (secondary-mark split) ---------------- */
+  --aldi: #0e4f9e;             /* border + badge text */
+  --aldi-tint: #e7effa;        /* badge bg */
+  --lidl: #f6c50a;             /* border (yellow) */
+  --lidl-text: #c8202e;        /* badge text (red) */
+  --lidl-tint: #fff2c2;        /* badge bg */
+
+  /* --- geometry --------------------------------------------- */
+  --radius-sm: 8px;            /* badges */
+  --radius: 11px;              /* chips, inputs, price pill */
+  --radius-md: 12px;           /* buttons */
+  --radius-lg: 16px;           /* cards */
+  --radius-xl: 20px;           /* modal, panels */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 28px;
+
+  --card-border-accent: 3px;   /* store-colored left border */
+
+  /* --- elevation & focus ------------------------------------ */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .03);
+  --shadow-lift: 0 14px 30px -12px rgba(30, 26, 20, .28);
+  --shadow-modal: 0 30px 70px -30px rgba(30, 26, 20, .5);
+  --shadow-popover: 0 16px 34px -12px rgba(0, 0, 0, .5);
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+
+  --transition: .15s ease;
+}
+
+[data-theme="dark"] {
+  --bg: #16181d;
+  --surface: #1d2027;
+  --surface-sunken: #22252d;
+  --surface-hover: #2f333d;
+
+  --ink: #f2f1ee;
+  --text: #ecebe7;
+  --text-2: #b8bcc6;
+  --text-3: #8b8f99;
+  --text-faint: #565b66;
+
+  --border: rgba(255, 255, 255, .07);
+  --border-strong: #2f333d;
+  --border-hover: #3a3f4a;
+
+  --accent: #e6624a;
+  --accent-hover: #f0764f;
+  --accent-active: #d9542f;
+  --accent-tint: rgba(230, 120, 80, .15);
+  --accent-text: #f0997e;
+
+  --aldi: #5aa0f0;
+  --aldi-tint: rgba(47, 127, 224, .16);
+  --lidl: #f2cf4a;
+  --lidl-text: #f2cf4a;
+  --lidl-tint: rgba(246, 197, 10, .14);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .2);
+  --shadow-lift: 0 14px 30px -12px rgba(0, 0, 0, .5);
+  --shadow-modal: 0 30px 70px -30px rgba(0, 0, 0, .7);
 }

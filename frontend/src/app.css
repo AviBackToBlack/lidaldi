@@ -1,125 +1,169 @@
-/* Minimal shell styles — unstyled-but-tidy; real design lands in T6. */
-*,
-*::before,
-*::after {
+/* Global styles translated from the approved design export
+   (frontend/design/mockup.html). Shared control classes (.chip,
+   .select-wrapper, .btn-*) live here because they are used across
+   components; component-specific rules live in the components. */
+
+* {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  line-height: var(--line-height);
+  padding: 26px 30px 40px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-header.app-header {
-  padding: var(--space-4);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-header.app-header h1 {
-  margin: 0;
-  font-size: var(--font-size-xl);
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-.meta-line {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+.chip {
+  padding: 9px 15px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  transition: background var(--transition), border-color var(--transition),
+    color var(--transition);
+}
+.chip:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+.chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chip.active:hover {
+  background: var(--accent-hover);
+}
+.chip.date {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+.chip.date.active {
+  color: #fff;
+}
+.chip:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+.chip:disabled:hover {
+  background: var(--surface);
+  border-color: var(--border-strong);
 }
 
-.filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  align-items: center;
-}
-
-.filter-bar button,
-.filter-bar select,
-.filter-bar input {
-  font: inherit;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-}
-
-.filter-bar button.active {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--space-3);
-  padding: var(--space-4);
-}
-
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  box-shadow: var(--shadow-sm);
-}
-
-.card a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.card .title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  margin-bottom: var(--space-2);
-}
-
-.card .info {
-  display: flex;
-  justify-content: space-between;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.badge-new {
+.select-wrapper {
+  position: relative;
   display: inline-block;
-  background: var(--color-badge-new-bg);
-  color: var(--color-badge-new-text);
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-1);
-  font-size: var(--font-size-xs);
-  margin-left: var(--space-1);
+}
+.select-wrapper select {
+  appearance: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 9px 30px 9px 13px;
+  cursor: pointer;
+}
+.select-wrapper::after {
+  content: "▾";
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.select-wrapper select:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
 }
 
-.pager {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: center;
-  padding: var(--space-4);
+.btn-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.btn-dark:hover {
+  opacity: 0.88;
 }
 
-.pager button {
-  font: inherit;
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+.btn-primary {
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  padding: 0 18px;
 }
-
-.pager button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+.btn-ink {
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  padding: 0 16px;
 }
 
 .status {
-  padding: var(--space-4);
-  color: var(--color-text-muted);
+  padding: var(--space-4) 2px;
+  color: var(--text-3);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+
+footer.site-footer {
+  margin-top: 36px;
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-3);
+  line-height: 1.6;
+}
+footer.site-footer a {
+  color: var(--accent-text);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-tint);
+}
+footer.site-footer a:hover {
+  border-bottom-color: var(--accent-text);
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 14px 16px 30px;
+  }
 }
