@@ -25,8 +25,10 @@ jobs:
           tags: lidaldi-test:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # --ipc=host: the GitHub `container:` directive used it implicitly;
+      # without it Chromium only gets Docker's default 64 MB /dev/shm.
       - name: make test
-        run: docker run --rm -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test
+        run: docker run --rm --ipc=host -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test
 
   # T15 migration rehearsal — separate job: it pip-installs the real
   # requirements.txt and builds the frontend inside the sandbox, so it is
@@ -43,7 +45,8 @@ jobs:
           file: .devcontainer/Dockerfile
           load: true
           tags: lidaldi-test:ci
+          # cache-to only in the `test` job: GHA cache keys are immutable,
+          # so parallel writers to one scope race and one silently loses.
           cache-from: type=gha
-          cache-to: type=gha,mode=max
       - name: make test-migration
-        run: docker run --rm -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test-migration
+        run: docker run --rm --ipc=host -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test-migration
