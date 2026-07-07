@@ -13,8 +13,8 @@
 | Loop 1 — Requirements & Design | **COMPLETE** (2026-07-05) |
 | Hard Stop #1 | **SIGNED OFF** (2026-07-05, operator "GO for Loop 2") |
 | Loop 2 — Implementation (T0–T15) | **COMPLETE** (2026-07-06) — all tasks merged + verified PASS |
-| Hard Stop #2 — pre-deploy sign-off | **AWAITING OPERATOR** |
-| Deploy + post-deploy verification | not started |
+| Hard Stop #2 — pre-deploy sign-off | **SIGNED OFF IN PRACTICE** (2026-07-07, operator ran pre-deploy actions + deploy) |
+| Deploy + post-deploy verification | **DEPLOYED** (2026-07-07, operator ran `deploy/update.sh` with fixes; new site live) |
 
 ## Hard Stop #1 sign-off (authoritative decisions)
 
@@ -80,6 +80,11 @@ Frozen contracts so far: sync contract doc `docs/sync-contract.md` (T4 PR #10) �
 T3 verifier notes: N6 (sw.js try/catch) deferred to T7 as planned; per-endpoint ledger shares MAX_NOTIFIED=2000 cap across endpoints (low — heavy multi-device profiles could evict live entries); endpoint hash = sha256[:16] (fine).
 
 T2 verifier notes (info): store shape id → {first_seen, last_seen} (GC needs last_seen; loader accepts legacy flat); sanity-ratio suppression still marks offers seen (pre-existing semantics); write_atomic has no fsync (benign — reseed path guarded).
+
+## Post-deploy log
+
+- Operator swapped the harness/installer from system Python (deadsnakes) to **pyenv Python 3.12.13 + `lidaldi` virtualenv** (commits 31ed5e4, 1ddfea6) and fixed merge_config.py commented-key handling. Deployed via `deploy/update.sh` with local fixes; new site confirmed live.
+- Those commits broke CI (jobs ran in the raw Playwright image, which has no `/opt/pyenv`). Fixed in [#21](https://github.com/AviBackToBlack/lidaldi/pull/21): CI now builds `.devcontainer/Dockerfile` (GHA-cached) and runs `make test`/`test-migration` inside it with `--ipc=host` — CI == local. Verified green in CI and locally (full `make test` + 3× `test-migration` in the built image).
 
 ## Hard Stop #2 — pre-deploy sign-off package (AWAITING OPERATOR)
 
