@@ -9,35 +9,41 @@ on:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    container:
-      # Same pinned image as docker-compose.yml — local == CI.
-      image: mcr.microsoft.com/playwright:v1.61.1-noble
-    env:
-      # GitHub Actions sets HOME=/github/home (owned by pwuser), but the job
-      # runs as root; Firefox refuses to launch when $HOME isn't owned by the
-      # current user. Point HOME at root's home so all three engines launch.
-      HOME: /root
     steps:
-      - name: Install make + python3-venv
-        run: apt-get update && apt-get install -y --no-install-recommends make python3-venv
       - uses: actions/checkout@v4
-      - name: Install k6 (pinned, checksum-verified — same script as the test image)
-        run: bash tests/load/install-k6.sh
+      - uses: docker/setup-buildx-action@v3
+      # Build the same image docker compose uses locally (pyenv Python 3.12.13
+      # + Playwright browsers + k6) so local == CI. Layers are cached in the
+      # GitHub Actions cache; the Python build only reruns when the Dockerfile
+      # or install-k6.sh change.
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: lidaldi-test:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: make test
-        run: make test
+        run: docker run --rm -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test
 
   # T15 migration rehearsal — separate job: it pip-installs the real
   # requirements.txt and builds the frontend inside the sandbox, so it is
   # slower than the default tier and isolated from it.
   test-migration:
     runs-on: ubuntu-24.04
-    container:
-      image: mcr.microsoft.com/playwright:v1.61.1-noble
-    env:
-      HOME: /root
     steps:
-      - name: Install make + python3-venv
-        run: apt-get update && apt-get install -y --no-install-recommends make python3-venv
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: lidaldi-test:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: make test-migration
-        run: make test-migration
+        run: docker run --rm -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test-migration
