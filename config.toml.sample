@@ -1,0 +1,74 @@
+# LIDALDI configuration (T9, deviation D3).
+#
+# Copy to `config.toml` next to this file (repo root) or into
+# offers_processing/, and edit. Secrets (Telegram token/chat id, VAPID
+# private key path) do NOT belong here — put them in `.env` (see
+# .env.sample). Requires Python >= 3.12.
+#
+# The loader (offers_processing/config_loader.py) prefers config.toml; a
+# legacy offers_processing/config.py still works during migration but
+# triggers a deprecation warning.
+
+[paths]
+# Offers processing folder path (scraper feeds, first_seen store, sync dir).
+offers_processing_dir = "/path/to/processing/folder"
+
+# Website root folder path (offers.json, meta.json and the frontend build
+# output, including index.html, live here).
+website_root_dir = "/path/to/website/root/folder"
+
+# Prometheus textfile exporter directory. Set to the directory watched by
+# node_exporter's textfile collector (typically
+# /var/lib/prometheus/node-exporter). Omit to disable metric emission.
+#prom_textfile_dir = "/var/lib/prometheus/node-exporter"
+
+# Individual file paths are derived from the directories above; uncomment
+# only to override the defaults shown here.
+#aldi_offers_json = "<offers_processing_dir>/aldi_offers.json"
+#lidl_offers_json = "<offers_processing_dir>/lidl_offers.json"
+#aldi_scraping_report_json = "<offers_processing_dir>/aldi_scraping_report.json"
+#lidl_scraping_report_json = "<offers_processing_dir>/lidl_scraping_report.json"
+# New offers JSON (items added in this cron run, used by send_notifications.py)
+#new_offers_json = "<offers_processing_dir>/new_offers.json"
+# first_seen store: maps stable product id (ALDI SKU / LIDL canonical URL
+# path) to {"first_seen": ts, "last_seen": ts}. Maintained by
+# process_offers.py; "new" = id not present in this store. Entries not seen
+# for >180 days are garbage-collected.
+#first_seen_json = "<offers_processing_dir>/first_seen.json"
+# Last-run state file (counts + SHA of the offer set). Used by monitoring /
+# Telegram alerts to detect suspicious churn between runs.
+#last_run_state_json = "<offers_processing_dir>/last_run.json"
+# Static data files served from the web root (D2). offers.json is the merged
+# offer list (each item carries id + first_seen); meta.json holds
+# {"lastUpdated": unix_ts, "vapidPublicKey": ...} for the frontend.
+#offers_json = "<website_root_dir>/offers.json"
+#meta_json = "<website_root_dir>/meta.json"
+
+[sync]
+# Sync server bind address and CORS allow-listed origin.
+#dir = "<offers_processing_dir>/sync"
+host = "127.0.0.1"
+port = 8099
+allowed_origin = "https://your-website-url"
+
+[push]
+# VAPID keys for Web Push notifications.
+# Generate with:  PYENV_VERSION=lidaldi python generate_vapid_keys.py /path/to/processing/folder
+# The PRIVATE key path is a secret and lives in .env
+# (VAPID_PRIVATE_KEY_PATH); only the public key belongs here.
+vapid_public_key = "your-vapid-public-key-base64url"
+vapid_claims_email = "mailto:admin@your-website-url"
+
+[scraper]
+# Operator-tunable scraper settings, consumed by
+# scraper/lidaldi/settings.sample.py via the loader.
+images_store = "/path/to/images/folder"
+images_expires = 90
+# Seconds between requests to the same site (be a polite scraper).
+download_delay = 3
+# Where spiders write their per-run scraping report JSONs.
+# Defaults to offers_processing_dir.
+#scraping_report_dir = "/path/to/processing/folder"
+# ALDI & LIDL default images
+aldi_no_image_url = "https://example.com/img/aldi_no_image.png"
+lidl_no_image_url = "https://example.com/img/lidl_no_image.png"

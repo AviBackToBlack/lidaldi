@@ -19,7 +19,7 @@ import sys
 import time
 from urllib.parse import urlparse
 
-import config
+from config_loader import get_config
 import sync_store
 from common import (
     log_event,
@@ -27,6 +27,8 @@ from common import (
     send_telegram_message,
     write_prom_textfile,
 )
+
+config = get_config()
 
 try:
     from pywebpush import WebPusher, WebPushException
@@ -101,6 +103,22 @@ def send_push(subscription, payload):
 # ---------------------------------------------------------------------------
 # Alert matching
 # ---------------------------------------------------------------------------
+def offer_key(item):
+    """Stable identity for an offer: T2 stable id, falling back to URL."""
+    return item.get("id") or item.get("url") or ""
+
+
+def build_payload(alert_id, keyword, count):
+    """Aggregate push payload. Opens the app's AlertsView, never a
+    third-party product URL (Bug #4)."""
+    return {
+        "title": "LidAldi Alert",
+        "body": f"{count} new match{'es' if count != 1 else ''} for '{keyword}'",
+        "url": f"/?view=alerts&alert={alert_id}",
+        "icon": "/img/lidaldi.png",
+    }
+
+
 def match_alert(alert, item):
     keyword = (alert.get("keyword") or "").lower()
     match_type = alert.get("matchType")
@@ -187,36 +205,25 @@ def run(dry_run=False):
             continue
         stats["profiles_with_alerts"] += 1
 
-        # --- Phase 2: compute payloads outside the lock ---
-        planned = []  # [{payload, alertId, matched_urls}]
+        # --- Phase 2: compute matches per alert outside the lock ---
+        # Delivery is deduped per (alertId, offer id, endpoint): each
+        # endpoint gets its own aggregate push covering the offers it has
+        # not been notified about yet, so a device that transiently failed
+        # is retried on the next run without re-notifying the others.
+        planned = []  # [{alertId, keyword, offer_ids}]
         for alert in alerts:
             aid = alert.get("id")
-            matches = [
-                item for item in new_offers
-                if item.get("url") and match_alert(alert, item)
-                and not sync_store.already_notified(ledger, aid, item["url"])
+            matched = [
+                (offer_key(item), item.get("url"))
+                for item in new_offers
+                if offer_key(item) and match_alert(alert, item)
             ]
-            if not matches:
+            if not matched:
                 continue
-            first = matches[0]
-            title = f"LidAldi Alert: {alert.get('keyword', '')}"
-            body = (
-                f"{first.get('store', '')}: {first.get('title', '')} "
-                f"\u2014 \u20ac{first.get('price', 'N/A')}"
-            )
-            if len(matches) > 1:
-                extra = len(matches) - 1
-                body += f"\nand {extra} more match{'es' if extra > 1 else ''}"
-            payload = {
-                "title": title,
-                "body": body,
-                "url": first.get("url", ""),
-                "icon": "/img/lidaldi.png",
-            }
             planned.append({
-                "payload": payload,
                 "alertId": aid,
-                "matched_urls": [m["url"] for m in matches],
+                "keyword": alert.get("keyword", ""),
+                "offers": matched,  # [(id, url)]
             })
 
         if not planned:
@@ -231,57 +238,70 @@ def run(dry_run=False):
             continue
 
         # --- Phase 3: send (outside lock) ---
-        # Track which alerts were actually delivered to at least one live
-        # subscription. Only those get ledger entries in Phase 4 so that
-        # transient push failures (5xx, network errors) are retried on the
-        # next cron run instead of being silently suppressed for 30 days.
+        now_ts = time.time()
         expired_endpoints = set()
         delivered_alert_ids = set()
+        new_ledger_entries = []
         for entry in planned:
-            payload = entry["payload"]
-            any_ok = False
+            aid = entry["alertId"]
             for sub in subs:
                 endpoint = sub.get("endpoint")
                 if not endpoint or endpoint in expired_endpoints:
                     continue
+                ep_hash = sync_store.endpoint_hash(endpoint)
+                pending = [
+                    oid for oid, ourl in entry["offers"]
+                    if not sync_store.already_notified(
+                        ledger, aid, oid, ep_hash, offer_url=ourl)
+                ]
+                if not pending:
+                    continue
+                payload = build_payload(aid, entry["keyword"], len(pending))
                 result = send_push(sub, payload)
                 if result == "ok":
                     stats["push_ok"] += 1
-                    any_ok = True
+                    delivered_alert_ids.add(aid)
+                    for oid in pending:
+                        new_ledger_entries.append({
+                            "alertId": aid,
+                            "id": oid,
+                            "endpoint": ep_hash,
+                            "at": now_ts,
+                        })
                 elif result == "expired":
                     expired_endpoints.add(endpoint)
                     stats["push_expired"] += 1
                 else:
                     stats["push_error"] += 1
-            if any_ok:
-                delivered_alert_ids.add(entry["alertId"])
 
-        # Build ledger entries only for delivered alerts.
-        now_ts = time.time()
-        new_ledger_entries = []
-        for entry in planned:
-            if entry["alertId"] not in delivered_alert_ids:
-                continue
-            for url in entry["matched_urls"]:
-                new_ledger_entries.append({
-                    "alertId": entry["alertId"],
-                    "url": url,
-                    "at": now_ts,
-                })
+        # Alert matches to expose to the frontend AlertsView: only alerts
+        # that were actually delivered somewhere get entries, so failed
+        # sends are retried (and recorded) on a later run.
+        matches_to_record = {
+            e["alertId"]: [oid for oid, _ in e["offers"]] for e in planned
+            if e["alertId"] in delivered_alert_ids
+        }
 
         # --- Phase 4: RMW to update ledger & drop expired subs ---
         def _finalize(data):
             if data is None:
                 return None
             ledger2 = sync_store.gc_notified(data.get("notified") or [])
-            seen = {(e.get("alertId"), e.get("url")) for e in ledger2}
+            seen = {
+                (e.get("alertId"), e.get("id") or e.get("url"), e.get("endpoint"))
+                for e in ledger2
+            }
             for e in new_ledger_entries:
-                key = (e["alertId"], e["url"])
+                key = (e["alertId"], e["id"], e["endpoint"])
                 if key in seen:
                     continue
                 ledger2.append(e)
                 seen.add(key)
             data["notified"] = ledger2[-sync_store.MAX_NOTIFIED:]
+            am = sync_store.gc_alert_matches(data.get("alertMatches") or {})
+            for aid, oids in matches_to_record.items():
+                sync_store.record_alert_matches(am, aid, oids, now=now_ts)
+            data["alertMatches"] = am
             if expired_endpoints:
                 before = len(data.get("pushSubscriptions", []))
                 data["pushSubscriptions"] = [

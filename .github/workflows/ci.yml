@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [refactor]
+  pull_request:
+    branches: [refactor]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Build the same image docker compose uses locally (pyenv Python 3.12.13
+      # + Playwright browsers + k6) so local == CI. Layers are cached in the
+      # GitHub Actions cache; the Python build only reruns when the Dockerfile
+      # or install-k6.sh change.
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: lidaldi-test:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # --ipc=host: the GitHub `container:` directive used it implicitly;
+      # without it Chromium only gets Docker's default 64 MB /dev/shm.
+      - name: make test
+        run: docker run --rm --ipc=host -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test
+
+  # T15 migration rehearsal — separate job: it pip-installs the real
+  # requirements.txt and builds the frontend inside the sandbox, so it is
+  # slower than the default tier and isolated from it.
+  test-migration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: lidaldi-test:ci
+          # cache-to only in the `test` job: GHA cache keys are immutable,
+          # so parallel writers to one scope race and one silently loses.
+          cache-from: type=gha
+      - name: make test-migration
+        run: docker run --rm --ipc=host -v "$PWD:/work" -w /work -e CI=true lidaldi-test:ci make test-migration

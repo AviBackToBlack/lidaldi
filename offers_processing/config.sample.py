@@ -15,10 +15,11 @@ LIDL_SCRAPING_REPORT_JSON = os.path.join(OFFERS_PROCESSING_DIR, "lidl_scraping_r
 # New offers JSON (items added in this cron run, used by send_notifications.py)
 NEW_OFFERS_JSON = os.path.join(OFFERS_PROCESSING_DIR, "new_offers.json")
 
-# Snapshot of the URLs in the previously-rendered offer set. process_offers.py
-# reads this on the next run to diff "what's new" instead of re-parsing
-# index.html — the HTML is a presentation artefact, not a data source.
-OFFERS_URLS_JSON = os.path.join(OFFERS_PROCESSING_DIR, "offers_urls.json")
+# first_seen store: maps stable product id (ALDI SKU / LIDL canonical URL
+# path) to {"first_seen": ts, "last_seen": ts}. Maintained by
+# process_offers.py; "new" = id not present in this store. Entries not seen
+# for >180 days are garbage-collected.
+FIRST_SEEN_JSON = os.path.join(OFFERS_PROCESSING_DIR, "first_seen.json")
 
 # Last-run state file (counts + SHA of the offer set). Used by monitoring /
 # Telegram alerts to detect suspicious churn between runs.
@@ -29,11 +30,11 @@ LAST_RUN_STATE_JSON = os.path.join(OFFERS_PROCESSING_DIR, "last_run.json")
 # Leave as None to disable metric emission.
 PROM_TEXTFILE_DIR = None
 
-# index.html paths
-INDEX_TEMPLATE = os.path.join(WEBSITE_ROOT_DIR, "index.html.tpl")
-INDEX_HTML = os.path.join(WEBSITE_ROOT_DIR, "index.html")
-INDEX_NEW_HTML = os.path.join(WEBSITE_ROOT_DIR, "index.new.html")
-INDEX_OLD_HTML = os.path.join(WEBSITE_ROOT_DIR, "index.old.html")
+# Static data files served from the web root (D2). offers.json is the merged
+# offer list (each item carries id + first_seen); meta.json holds
+# {"lastUpdated": unix_ts, "vapidPublicKey": ...} for the frontend.
+OFFERS_JSON = os.path.join(WEBSITE_ROOT_DIR, "offers.json")
+META_JSON = os.path.join(WEBSITE_ROOT_DIR, "meta.json")
 
 # Telegram
 TELEGRAM_BOT_TOKEN = "your-telegram-bot-token"
@@ -49,7 +50,7 @@ SYNC_ALLOWED_ORIGIN = "https://your-website-url"
 
 # ---------------------------------------------------------------------------
 # VAPID keys for Web Push notifications
-# Generate with:  python generate_vapid_keys.py /path/to/processing/folder
+# Generate with:  PYENV_VERSION=lidaldi python generate_vapid_keys.py /path/to/processing/folder
 #
 # SECURITY: the private key is a long-lived signing credential. After
 # generation, lock it down:

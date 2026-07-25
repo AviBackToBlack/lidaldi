@@ -1,0 +1,16 @@
+{
+  "name": "lidaldi-test",
+  "dockerComposeFile": "../docker-compose.yml",
+  "overrideCommand": true,
+  "service": "test",
+  "workspaceFolder": "/work",
+  "postCreateCommand": "make setup",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-playwright.playwright"
+      ]
+    }
+  }
+}

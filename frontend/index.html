@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#d9542f" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash.
+      (function () {
+        var m = document.cookie.match(/(?:^|;\s*)lidaldi_theme=(light|dark)/);
+        var theme = m
+          ? m[1]
+          : window.matchMedia &&
+              matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        if (theme === "dark") document.documentElement.dataset.theme = "dark";
+      })();
+    </script>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="preload" href="/offers.json" as="fetch" type="application/json" crossorigin />
+    <title>LIDALDI — ALDI &amp; LIDL Middle Aisle Offers</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,214 @@
+/* Global styles translated from the approved design export
+   (frontend/design/mockup.html). Shared control classes (.chip,
+   .select-wrapper, .btn-*) live here because they are used across
+   components; component-specific rules live in the components. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 26px 30px 40px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Visually hidden, screen-reader-only text. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.chip {
+  padding: 9px 15px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  transition: background var(--transition), border-color var(--transition),
+    color var(--transition);
+}
+.chip:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+/* WCAG contrast: white on --accent is 3.99:1, so active chips use the
+   darker --accent-hover/--accent-active pair; dark theme keeps the accent
+   background and flips the text to --bg instead. */
+.chip.active {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+.chip.active:hover {
+  background: var(--accent-active);
+}
+[data-theme="dark"] .chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+[data-theme="dark"] .chip.active:hover {
+  background: var(--accent-hover);
+}
+.chip.date {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+.chip.date.active {
+  color: #fff;
+}
+[data-theme="dark"] .chip.date.active {
+  color: var(--bg);
+}
+.chip:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+.chip:disabled:hover {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.select-wrapper {
+  position: relative;
+  display: inline-block;
+}
+.select-wrapper select {
+  appearance: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 9px 30px 9px 13px;
+  cursor: pointer;
+}
+.select-wrapper::after {
+  content: "▾";
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.select-wrapper select:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+.btn-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.btn-dark:hover {
+  opacity: 0.88;
+}
+
+.btn-primary {
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent-hover);
+  color: #fff;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  padding: 0 18px;
+}
+.btn-primary:hover {
+  background: var(--accent-active);
+}
+[data-theme="dark"] .btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+[data-theme="dark"] .btn-primary:hover {
+  background: var(--accent-hover);
+}
+.btn-ink {
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  padding: 0 16px;
+}
+
+.status {
+  padding: var(--space-4) 2px;
+  color: var(--text-2);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+
+footer.site-footer {
+  margin-top: 36px;
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+  line-height: 1.6;
+}
+footer.site-footer a {
+  color: var(--accent-text);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-tint);
+}
+footer.site-footer a:hover {
+  border-bottom-color: var(--accent-text);
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 14px 16px 30px;
+  }
+}

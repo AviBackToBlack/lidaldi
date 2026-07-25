@@ -10,7 +10,7 @@ set -euo pipefail
 SCRAPY_DIR="/path/to/scrapy"
 PROCESSING_DIR="/path/to/processing"
 IMAGES_DIR="/path/to/images/folder"
-VENV_ACTIVATE=""   # e.g. "/path/to/venv/bin/activate"
+VENV_ACTIVATE="/path/to/venv/bin/activate"
 
 # Timeouts (seconds). Tune to your crawl budget.
 SCRAPE_TIMEOUT=1800

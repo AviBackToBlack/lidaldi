@@ -42,7 +42,7 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 UMask=0027
 # Adjust this to the directory that holds the sync/*.json files (and any
 # textfile-exporter target directory you configured).
-ReadWritePaths=/opt/your-website-url/offers_processing/sync
+ReadWritePaths=/opt/your-website-url/data/sync
 # ReadWritePaths=/var/lib/prometheus/node-exporter
 
 [Install]

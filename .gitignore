@@ -69,3 +69,18 @@ settings.py
 
 # Offers processing settings
 config.py
+
+# TOML/.env configuration (T9) — real files carry paths and secrets
+config.toml
+.env
+
+# Installer local paths (T10) — per-environment, never committed
+deploy/install.local.conf
+
+# Test harness (T1)
+.venv/
+node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+# ZAP baseline scan writes its generated plan into the mounted tests/ dir
+tests/zap.yaml

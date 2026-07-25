@@ -1,0 +1,170 @@
+"""T3/T4: sync_server HTTP contract tests against a real server in a thread."""
+
+import json
+import time
+import urllib.error
+import urllib.request
+
+
+def _get(base, code):
+    with urllib.request.urlopen(f"{base}/api/sync/{code}") as r:
+        return r.status, json.loads(r.read())
+
+
+def _post(base, code, body):
+    req = urllib.request.Request(
+        f"{base}/api/sync/{code}",
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as r:
+        return r.status, json.loads(r.read())
+
+
+ALERT = {"id": "a1", "keyword": "drill", "matchType": "anyWord", "createdAt": 1}
+
+
+# ---------------------------------------------------------------------------
+# T3: alertMatches — exposed on GET, server-owned on POST
+# ---------------------------------------------------------------------------
+def test_get_empty_profile_includes_alert_matches(server):
+    status, body = _get(server, "CODE01")
+    assert status == 200
+    assert body == {"lastVisit": 0, "alerts": [], "tombstones": [],
+                    "alertMatches": {}}
+
+
+def test_get_returns_alert_matches_written_by_notifier(server, sync_env):
+    import sync_store
+
+    now = time.time()
+    _post(server, "CODE01", {"lastVisit": 100, "alerts": [ALERT]})
+
+    def _add(data):
+        data["alertMatches"] = {"a1": [{"id": "111", "at": now}]}
+        return data
+
+    sync_store.locked_rmw("CODE01", _add)
+    status, body = _get(server, "CODE01")
+    assert status == 200
+    assert body["alertMatches"] == {"a1": [{"id": "111", "at": now}]}
+
+
+def test_get_gcs_expired_alert_matches(server, sync_env):
+    import sync_store
+
+    old = time.time() - sync_store.ALERT_MATCHES_TTL_SEC - 1
+    _post(server, "CODE01", {"lastVisit": 100})
+
+    def _add(data):
+        data["alertMatches"] = {"a1": [{"id": "111", "at": old}]}
+        return data
+
+    sync_store.locked_rmw("CODE01", _add)
+    _, body = _get(server, "CODE01")
+    assert body["alertMatches"] == {}
+
+
+def test_post_cannot_inject_alert_matches_or_notified(server, sync_env):
+    import sync_store
+
+    status, body = _post(server, "CODE01", {
+        "lastVisit": 100,
+        "alerts": [ALERT],
+        "alertMatches": {"a1": [{"id": "evil", "at": time.time()}]},
+        "notified": [{"alertId": "a1", "id": "evil", "endpoint": "x", "at": 1}],
+    })
+    assert status == 200
+    assert "alertMatches" not in body and "notified" not in body
+
+    stored = sync_store.locked_rmw("CODE01", lambda d: None)
+    assert stored["alertMatches"] == {}
+    assert stored["notified"] == []
+
+
+def test_post_cannot_overwrite_existing_server_owned_fields(server, sync_env):
+    import sync_store
+
+    now = time.time()
+    _post(server, "CODE01", {"lastVisit": 100, "alerts": [ALERT]})
+
+    def _add(data):
+        data["alertMatches"] = {"a1": [{"id": "111", "at": now}]}
+        data["notified"] = [{"alertId": "a1", "id": "111", "endpoint": "e", "at": now}]
+        return data
+
+    sync_store.locked_rmw("CODE01", _add)
+    _post(server, "CODE01", {
+        "lastVisit": 200,
+        "alertMatches": {},
+        "notified": [],
+    })
+    stored = sync_store.locked_rmw("CODE01", lambda d: None)
+    assert stored["alertMatches"] == {"a1": [{"id": "111", "at": now}]}
+    assert stored["notified"] == [
+        {"alertId": "a1", "id": "111", "endpoint": "e", "at": now}
+    ]
+
+
+def test_post_response_shape_unchanged(server):
+    status, body = _post(server, "CODE01", {"lastVisit": 100, "alerts": [ALERT]})
+    assert status == 200
+    assert set(body) == {"lastVisit", "alerts", "tombstones"}
+
+
+# ---------------------------------------------------------------------------
+# Security validation preserved
+# ---------------------------------------------------------------------------
+def test_invalid_code_rejected(server):
+    req = urllib.request.Request(f"{server}/api/sync/bad!code")
+    try:
+        urllib.request.urlopen(req)
+        assert False, "expected 400"
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+
+
+def test_invalid_alerts_rejected(server):
+    req = urllib.request.Request(
+        f"{server}/api/sync/CODE01",
+        data=json.dumps({"alerts": [{"id": "x", "keyword": "", "matchType": "exact"}]}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(req)
+        assert False, "expected 400"
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+
+
+def test_rate_limit_429_once_per_ip_limit_exceeded(server, monkeypatch):
+    """Real limiter behaviour: 429 only after RATE_MAX requests per IP.
+
+    The shared `server` fixture raises RATE_MAX so unrelated tests never
+    trip the limiter; this test scopes it back down and uses fresh
+    X-Forwarded-For client IPs (trusted from loopback) so it is isolated
+    from requests made by other tests.
+    """
+    import sync_server
+
+    monkeypatch.setattr(sync_server, "RATE_MAX", 5)
+
+    def _get_as(ip):
+        req = urllib.request.Request(
+            f"{server}/api/sync/CODE01", headers={"X-Forwarded-For": ip}
+        )
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    ip = "203.0.113.9"
+    for i in range(5):
+        assert _get_as(ip) == 200, f"request {i + 1} should be under the limit"
+    assert _get_as(ip) == 429
+    assert _get_as(ip) == 429
+    # Other client IPs are unaffected.
+    assert _get_as("203.0.113.10") == 200

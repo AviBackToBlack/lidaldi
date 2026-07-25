@@ -9,6 +9,7 @@ NOTE: This module uses `fcntl` and therefore works only on POSIX systems.
 Running the sync pipeline on Windows is not supported — see README.md.
 """
 
+import hashlib
 import json
 import os
 import time
@@ -21,13 +22,17 @@ except ImportError as _e:
         "supported on Windows; run inside Linux/WSL."
     ) from _e
 
-import config
+from config_loader import get_config
+
+config = get_config()
 
 
 TOMBSTONE_TTL_SEC = 30 * 24 * 3600
 NOTIFIED_TTL_SEC = 30 * 24 * 3600
+ALERT_MATCHES_TTL_SEC = 30 * 24 * 3600
 MAX_TOMBSTONES = 200
 MAX_NOTIFIED = 2000
+MAX_ALERT_MATCHES_PER_ALERT = 100
 
 
 # ---------------------------------------------------------------------------
@@ -202,8 +207,64 @@ def gc_notified(ledger, now=None):
     return kept[-MAX_NOTIFIED:]
 
 
-def already_notified(ledger, alert_id, url):
+def endpoint_hash(endpoint):
+    """Short stable hash of a push endpoint URL for ledger keys."""
+    return hashlib.sha256(endpoint.encode("utf-8")).hexdigest()[:16]
+
+
+def already_notified(ledger, alert_id, offer_id, ep_hash, offer_url=None):
+    """True if (alert, offer) was already delivered to this endpoint.
+
+    Ledger entries carry an `endpoint` hash. Legacy entries without one
+    (pre-per-endpoint ledger) count as delivered to every endpoint so an
+    upgrade doesn't re-notify existing devices. Legacy entries keyed by
+    `url` instead of `id` match on the offer's id or url."""
+    keys = {offer_id}
+    if offer_url:
+        keys.add(offer_url)
     for e in (ledger or []):
-        if e.get("alertId") == alert_id and e.get("url") == url:
+        if e.get("alertId") != alert_id:
+            continue
+        if e.get("id") not in keys and e.get("url") not in keys:
+            continue
+        ep = e.get("endpoint")
+        if ep is None or ep == ep_hash:
             return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# Alert matches (what matched per alert, rendered by the AlertsView)
+# ---------------------------------------------------------------------------
+def gc_alert_matches(matches, now=None):
+    """GC the alertMatches map: drop expired entries, cap per alert.
+
+    Shape: {alertId: [{"id": offer_id, "at": ts}, ...]}
+    """
+    now = now if now is not None else time.time()
+    out = {}
+    for aid, entries in (matches or {}).items():
+        if not isinstance(aid, str) or not isinstance(entries, list):
+            continue
+        kept = [
+            e for e in entries
+            if isinstance(e, dict) and isinstance(e.get("id"), str)
+            and (now - float(e.get("at", 0))) < ALERT_MATCHES_TTL_SEC
+        ]
+        if kept:
+            out[aid] = kept[-MAX_ALERT_MATCHES_PER_ALERT:]
+    return out
+
+
+def record_alert_matches(matches, alert_id, offer_ids, now=None):
+    """Append newly matched offer ids for an alert (deduped by id)."""
+    now = now if now is not None else time.time()
+    entries = list(matches.get(alert_id, []))
+    seen = {e.get("id") for e in entries}
+    for oid in offer_ids:
+        if oid in seen:
+            continue
+        entries.append({"id": oid, "at": now})
+        seen.add(oid)
+    matches[alert_id] = entries[-MAX_ALERT_MATCHES_PER_ALERT:]
+    return matches

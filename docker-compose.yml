@@ -1,0 +1,47 @@
+# Reproducible test environment for the LIDALDI refactor (T1).
+# Base image (see .devcontainer/Dockerfile): official Playwright image (pinned)
+# — ships Node LTS and Chromium/Firefox/WebKit browsers with all system deps.
+# Adds pyenv Python 3.12.13 + pyenv-virtualenv and `make`.
+services:
+  test:
+    build:
+      # Repo-root context so the Dockerfile can COPY tests/load/install-k6.sh.
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    working_dir: /work
+    volumes:
+      - .:/work
+    environment:
+      - CI=${CI:-}
+    # Keep the container alive for devcontainer / interactive use.
+    command: sleep infinity
+
+  # Opt-in OWASP ZAP baseline scan (D4) — never part of `make test`.
+  # `make test-zap` boots zap-target (built frontend + sync API on one
+  # origin) and scans it; point ZAP_TARGET elsewhere to scan a running
+  # instance instead.
+  zap-target:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    profiles: ["zap"]
+    working_dir: /work
+    volumes:
+      - .:/work
+    command: bash tests/zap/serve_target.sh
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8100/"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:2.16.1
+    profiles: ["zap"]
+    depends_on:
+      zap-target:
+        condition: service_healthy
+    volumes:
+      - ./tests:/zap/wrk
+    command: zap-baseline.py -t ${ZAP_TARGET:-http://zap-target:8100} -I
