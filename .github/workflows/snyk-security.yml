@@ -72,11 +72,24 @@ jobs:
       - name: Snyk Open Source monitor
         run: snyk monitor --all-projects
 
-        # Push the Snyk Code results into GitHub Code Scanning tab. Runs
-        # even if `snyk code test` exited non-zero (real findings do that),
-        # otherwise a scan that finds something never gets its SARIF uploaded.
-      - name: Upload result to GitHub Code Scanning
+        # `snyk code test` above still fails the job on real findings (the
+        # `|| true` fallback is deliberately commented out) — but a hard
+        # error (auth, org config) can leave snyk-code.sarif empty/invalid,
+        # which upload-sarif can't parse. Only attempt the upload when the
+        # file actually contains parseable SARIF.
+      - name: Check SARIF output is valid
+        id: sarif-check
         if: always()
+        run: |
+          if [ -s snyk-code.sarif ] && jq empty snyk-code.sarif >/dev/null 2>&1; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+          fi
+
+        # Push the Snyk Code results into GitHub Code Scanning tab.
+      - name: Upload result to GitHub Code Scanning
+        if: always() && steps.sarif-check.outputs.valid == 'true'
         uses: github/codeql-action/upload-sarif@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
         with:
           sarif_file: snyk-code.sarif
