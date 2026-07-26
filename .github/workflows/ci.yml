@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       # Build the same image docker compose uses locally (pyenv Python 3.12.13
       # + Playwright browsers + k6) so local == CI. Layers are cached in the
@@ -36,7 +36,7 @@ jobs:
   test-migration:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       - name: Build test image
         uses: docker/build-push-action@v7
