@@ -208,11 +208,17 @@ documented for `pwa-push.spec.ts` (`chromium-push` project) in
   no attribute 'strip'`). Always use `(data.get(key) or default)` for
   string fields coming from these APIs, not the two-arg `.get()` form.
 - **`ErrorCheckingPipeline`** (`scraper/lidaldi/pipelines.py`) fails the
-  whole scrape if `self.logger.error()` is called even once, or if
-  `total_items` is below a hardcoded threshold (currently 90 — was 100
-  until LIDL's real non-food inventory dropped below that; verify against
-  the live site before assuming a threshold failure means a bug — see
-  `pipelines.py:90`).
+  whole scrape if any of several thresholds is crossed (see
+  `scraper/lidaldi/pipelines.py:88-103`): `total_items` is 0 or below a
+  hardcoded minimum (currently 90 — was 100 until LIDL's real non-food
+  inventory dropped below that; verify against the live site before
+  assuming a threshold failure means a bug — see
+  `scraper/lidaldi/pipelines.py:90`); the ERROR-log ratio exceeds 10%
+  (`error_ratio > 0.1` — a *single* `logger.error()` does **not** sink the
+  run, only >10% of items producing ERROR entries does); the dropped-item
+  ratio exceeds 10% (`dropped_ratio > 0.1`); a per-field missing ratio
+  exceeds its threshold; or any exception was recorded during item
+  processing.
 - **Sync server contract is frozen**: `docs/sync-contract.md` documents
   the exact GET/POST semantics, most importantly the `lastVisit`
   self-race fix (client must never adopt a server `lastVisit` newer than
