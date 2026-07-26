@@ -86,7 +86,7 @@ jobs:
         # --sarif-file-output writes the SARIF to disk while still printing
         # the normal human-readable findings list to the job log.
       - name: Snyk Code test
-        run: snyk code test --sarif-file-output=snyk-code.sarif # || true
+        run: snyk code test --sarif-file-output=snyk-code.sarif -d # || true
 
         # Runs Snyk Open Source (SCA) analysis and uploads result to Snyk.
         # Independent of Snyk Code above — a Code finding failing that step
