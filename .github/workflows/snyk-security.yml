@@ -48,7 +48,10 @@ jobs:
       # A personal access token (unlike a legacy per-account API key) isn't
       # tied to a single default org, so the CLI can't infer which org to
       # act against without this — omitting it 403s with an empty org name.
-      SNYK_CFG_ORG: "08ee9b45-66fd-4689-b808-50fc0e58ce15"
+      # Using the org slug (not the org ID/UUID) avoids a separate CLI call
+      # to resolve ID -> slug (GET /rest/orgs/{id}), which 403s for this
+      # PAT and otherwise shows up as a spurious error in the job log.
+      SNYK_CFG_ORG: "avibacktoblack"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -85,15 +88,6 @@ jobs:
         # "Process completed with exit code 1" and nothing about why —
         # --sarif-file-output writes the SARIF to disk while still printing
         # the normal human-readable findings list to the job log.
-        #
-        # Known-benign trailing error: the log may also show a 403 on
-        # GET /rest/orgs/{id} ("Failed to determine slugname..."). That's
-        # the CLI trying to resolve the org ID into a display name/slug —
-        # unrelated to the actual scan, which completes and reports findings
-        # correctly regardless. It 403s because this PAT wasn't granted a
-        # scope covering that org-details endpoint; see
-        # https://app.snyk.io/account/personal-access-tokens to fix at the
-        # source, or ignore it (cosmetic only).
       - name: Snyk Code test
         run: snyk code test --sarif-file-output=snyk-code.sarif # || true
 
