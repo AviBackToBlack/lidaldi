@@ -52,8 +52,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-        # Snyk Open Source resolves frontend/'s dependency tree via its
-        # node_modules, so it needs to be installed first.
+        # Snyk Open Source resolves each project's dependency tree from an
+        # actual installed environment, not just the manifest — so both the
+        # Python (root + tests/) and Node (frontend/) dependencies need to
+        # be installed first, or `snyk monitor` reports "Missing required
+        # packages" for whichever ecosystem wasn't set up.
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -61,6 +64,13 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt -r tests/requirements.txt
 
       - name: Set up Snyk CLI to check for security issues
         # Snyk can be used to break the build when it detects security issues.
