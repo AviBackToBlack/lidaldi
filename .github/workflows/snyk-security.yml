@@ -45,6 +45,10 @@ jobs:
       # Needs to be visible to every step that shells out to `snyk`, not just
       # the CLI setup step (which doesn't actually use it).
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      # A personal access token (unlike a legacy per-account API key) isn't
+      # tied to a single default org, so the CLI can't infer which org to
+      # act against without this — omitting it 403s with an empty org name.
+      SNYK_CFG_ORG: "08ee9b45-66fd-4689-b808-50fc0e58ce15"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
