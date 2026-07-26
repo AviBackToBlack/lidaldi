@@ -48,10 +48,14 @@ jobs:
       # A personal access token (unlike a legacy per-account API key) isn't
       # tied to a single default org, so the CLI can't infer which org to
       # act against without this — omitting it 403s with an empty org name.
-      # Using the org slug (not the org ID/UUID) avoids a separate CLI call
-      # to resolve ID -> slug (GET /rest/orgs/{id}), which 403s for this
-      # PAT and otherwise shows up as a spurious error in the job log.
-      SNYK_CFG_ORG: "avibacktoblack"
+      # Note: the CLI still calls GET /rest/orgs/{id} regardless of whether
+      # this is the org ID or its slug (tried both — same 403 either way),
+      # to resolve/validate the org. That call 403s because the PAT wasn't
+      # granted a scope covering it; it's cosmetic — the actual scan/monitor
+      # both succeed regardless. Fix at the source by granting that scope
+      # (or regenerating the PAT with it) at
+      # https://app.snyk.io/account/personal-access-tokens.
+      SNYK_CFG_ORG: "08ee9b45-66fd-4689-b808-50fc0e58ce15"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
