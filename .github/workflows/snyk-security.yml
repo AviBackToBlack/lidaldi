@@ -50,7 +50,7 @@ jobs:
       # act against without this — omitting it 403s with an empty org name.
       SNYK_CFG_ORG: "08ee9b45-66fd-4689-b808-50fc0e58ce15"
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
         # Snyk Open Source resolves frontend/'s dependency tree via its
         # node_modules, so it needs to be installed first.
