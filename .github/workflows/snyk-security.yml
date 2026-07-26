@@ -85,8 +85,12 @@ jobs:
         # Runs Snyk Open Source (SCA) analysis and uploads result to Snyk.
         # Independent of Snyk Code above — a Code finding failing that step
         # shouldn't stop dependency monitoring from running and reporting.
+        # success() || failure(), not always(): always() also fires on job
+        # cancellation, and cancel-in-progress above cancels superseded PR
+        # runs — we don't want a cancelled run still pushing a `snyk
+        # monitor` snapshot (a persistent record, unlike `snyk test`).
       - name: Snyk Open Source monitor
-        if: always()
+        if: success() || failure()
         run: snyk monitor --all-projects
 
         # `snyk code test` above still fails the job on real findings (the
@@ -96,7 +100,7 @@ jobs:
         # file actually contains parseable SARIF.
       - name: Check SARIF output is valid
         id: sarif-check
-        if: always()
+        if: success() || failure()
         run: |
           if [ -s snyk-code.sarif ] && jq empty snyk-code.sarif >/dev/null 2>&1; then
             echo "valid=true" >> "$GITHUB_OUTPUT"
@@ -106,7 +110,7 @@ jobs:
 
         # Push the Snyk Code results into GitHub Code Scanning tab.
       - name: Upload result to GitHub Code Scanning
-        if: always() && steps.sarif-check.outputs.valid == 'true'
+        if: (success() || failure()) && steps.sarif-check.outputs.valid == 'true'
         uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           sarif_file: snyk-code.sarif
