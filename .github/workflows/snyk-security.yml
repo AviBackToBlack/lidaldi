@@ -27,7 +27,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Only cancel superseded PR runs. A push-to-main run must always finish
+  # (snyk monitor + the Code Scanning SARIF upload), so don't cancel those.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -44,7 +46,7 @@ jobs:
       # the CLI setup step (which doesn't actually use it).
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
         # Snyk Open Source resolves frontend/'s dependency tree via its
         # node_modules, so it needs to be installed first.
@@ -70,8 +72,11 @@ jobs:
       - name: Snyk Open Source monitor
         run: snyk monitor --all-projects
 
-        # Push the Snyk Code results into GitHub Code Scanning tab
+        # Push the Snyk Code results into GitHub Code Scanning tab. Runs
+        # even if `snyk code test` exited non-zero (real findings do that),
+        # otherwise a scan that finds something never gets its SARIF uploaded.
       - name: Upload result to GitHub Code Scanning
+        if: always()
         uses: github/codeql-action/upload-sarif@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
         with:
           sarif_file: snyk-code.sarif
