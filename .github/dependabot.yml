@@ -9,33 +9,66 @@ updates:
     directory: "/.devcontainer"
     schedule:
       interval: "weekly"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    groups:
+      # vite, its Svelte plugin, and vitest are version-locked to each
+      # other (see CLAUDE.md — PR #40 bumped vite alone and broke both).
+      # Group them so a bump always arrives as one PR to check together.
+      vite-toolchain:
+        patterns:
+          - "vite"
+          - "@sveltejs/vite-plugin-svelte"
+          - "vitest"
+      minor-patch:
+        update-types: ["minor", "patch"]
+        exclude-patterns:
+          - "vite"
+          - "@sveltejs/vite-plugin-svelte"
+          - "vitest"
 
   - package-ecosystem: "npm"
     directory: "/tests/e2e"
     schedule:
       interval: "weekly"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "pip"
     directory: "/tests"
     schedule:
       interval: "weekly"
+    groups:
+      minor-patch:
+        update-types: ["minor", "patch"]
