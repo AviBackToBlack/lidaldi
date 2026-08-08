@@ -274,8 +274,11 @@
       flex: 1;
     }
     .search-input {
+      /* flex-basis 100% (not min-width:0 + flex:1) so the box takes its own
+         wrapped row instead of shrinking into whatever the Sort/price line
+         has left over — at which point the placeholder gets clipped. */
       min-width: 0;
-      flex: 1;
+      flex: 1 0 100%;
     }
     .divider,
     .spacer {
