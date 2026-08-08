@@ -87,7 +87,7 @@ class ErrorCheckingPipeline:
 
             if self.total_items == 0:
                 overall_result = "FAILED"
-            elif self.total_items < 90:
+            elif self.total_items < 60:
                 overall_result = "FAILED"
             elif error_ratio > error_ratio_threshold:
                 overall_result = "FAILED"

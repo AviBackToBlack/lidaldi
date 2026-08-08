@@ -19,7 +19,8 @@ export function applyTheme(theme: Theme): void {
   } else {
     delete document.documentElement.dataset.theme;
   }
-  document.cookie = `lidaldi_theme=${theme}; path=/; max-age=31536000; SameSite=Lax`;
+  const secure = location.protocol === `https:` ? `; Secure` : ``;
+  document.cookie = `lidaldi_theme=${theme}; path=/; max-age=31536000; SameSite=Lax${secure}`;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", theme === "dark" ? "#e6624a" : "#d9542f");
 }
