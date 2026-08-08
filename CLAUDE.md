@@ -88,7 +88,7 @@ docker build -f .devcontainer/Dockerfile -t lidaldi-test:local .
 docker run --rm --ipc=host -v "$PWD:/work" -w /work -e CI=true lidaldi-test:local make test
 
 # just the frontend, iterating
-docker run --rm -v "$PWD/frontend:/work" -w /work mcr.microsoft.com/playwright:v1.61.1-noble bash -c "npm ci && npm run build"
+docker run --rm -v "$PWD/frontend:/work" -w /work mcr.microsoft.com/playwright:v1.62.0-noble bash -c "npm ci && npm run build"
 ```
 
 On Windows/Git Bash, `docker run -v` with a Windows path needs
@@ -262,3 +262,33 @@ losing/regenerating it kills push for every subscriber). Full procedure:
   triggering commit's diff even touches the failing area — a lot of
   "regressions" here turned out to be pre-existing flakes surfaced by
   unrelated commits (see the webkit flake above).
+- **`@playwright/test` and the container image are one version, two
+  places.** `tests/e2e/package.json` and `.devcontainer/Dockerfile`'s
+  `FROM mcr.microsoft.com/playwright:vX.Y.Z-noble` must match exactly, or
+  *every* e2e test dies with "Executable doesn't exist … Please update
+  docker image as well". Dependabot only ever bumps the npm side. This has
+  now happened twice (`c9db2ea` bumped, `9a4136e` reverted it, `1c5f70d`
+  bumped again and left `main` fully red until the image was bumped to
+  1.62.0 to match). Bump both, plus the version strings in this file and
+  `tests/README.md`, and re-run the visual tier.
+- **Root `.gitignore` patterns aren't anchored unless you anchor them.**
+  The Python-artifact block's `lib/` matched `frontend/src/lib/` at any
+  depth; git only kept the app source because `frontend/.gitignore`
+  re-includes it with `!src/lib/`, but tooling that reads only the root
+  ignore file (some agents/editors) treats the whole app `lib/` tree as
+  ignored and refuses to open it. Root-level build dirs are now written
+  `/lib/`, `/lib64/`. Keep new root-only patterns anchored.
+- **WebKit 26 (Playwright 1.62) wedges a page when a service worker
+  registers while `page.route()` interception is active.** Not a hang in
+  one API — the whole page stops answering, so every later protocol call
+  (`locator.count()`, `evaluate`, screenshots) times out; `waitForTimeout`
+  still resolves, which is the tell. It surfaced as all four AlertsModal
+  specs failing on webkit only (the modal registers `/sw.js` on open).
+  `routeOffers()` now aborts `**/sw.js`, since the SPA specs don't
+  exercise the worker and `pwa*.spec.ts` (which do) never mock routes.
+  Same family as the route-interception flake documented above.
+- **WebKit 26 also exposes `PushManager`/`Notification` headlessly**, so
+  `isPushSupported()` is now true there and the modal renders its extra
+  `.push-row` (+84px). That's a genuine capability change, not a
+  regression — the `alerts-modal-webkit.png` baseline was re-recorded for
+  it. Expect capability-gated UI to shift on browser bumps.
