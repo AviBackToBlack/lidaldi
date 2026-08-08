@@ -12,6 +12,7 @@ Running the sync pipeline on Windows is not supported — see README.md.
 import hashlib
 import json
 import os
+import re
 import time
 
 try:
@@ -38,15 +39,34 @@ MAX_ALERT_MATCHES_PER_ALERT = 100
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
+_CODE_SAFE_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _validate_code(code):
+    """Defence-in-depth: reject codes that could escape SYNC_DIR.
+
+    sync_server.py validates codes against ^[A-Za-z0-9]{6,8}$ at the HTTP
+    boundary; this guard protects sync_store if a future caller forgets
+    to validate.  Allows alphanumeric, dash, underscore (no path
+    separators, no '..', no null bytes).
+    """
+    if not isinstance(code, str) or not _CODE_SAFE_RE.match(code):
+        raise ValueError("invalid sync code")
+    return code
+
+
 def data_path(code):
+    _validate_code(code)
     return os.path.join(config.SYNC_DIR, f"{code}.json")
 
 
 def lock_path(code):
+    _validate_code(code)
     return os.path.join(config.SYNC_DIR, f"{code}.lock")
 
 
 def _quarantine_path(code):
+    _validate_code(code)
     return os.path.join(config.SYNC_DIR, f"{code}.corrupt.{int(time.time())}")
 
 
@@ -134,7 +154,10 @@ def list_profiles():
             continue
         if ".corrupt." in name or name.endswith(".tmp"):
             continue
-        codes.append(name[: -len(".json")])
+        candidate = name[: -len(".json")]
+        if not _CODE_SAFE_RE.match(candidate):
+            continue
+        codes.append(candidate)
     return codes
 
 
