@@ -232,11 +232,15 @@
     gap: 8px;
     margin-top: auto;
   }
+  /* No nowrap: the price pill never shrinks, so a long label ("While
+     Stock Lasts") used to push it past the card's right edge on narrow
+     columns. Wrapping the label is the only shrinkable part of the row. */
   .availability {
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--text-2);
-    white-space: nowrap;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   /* WCAG contrast: --accent-text on --accent-tint is 4.37:1 in light;
      --accent-active passes there, --accent-text stays for dark. */
@@ -326,6 +330,16 @@
     }
     .price {
       font-size: 14px;
+    }
+    /* Mobile columns are ~160-195px wide — too narrow for label + pill on
+       one line. Stack them so the pill can never be squeezed or clipped. */
+    .product-info {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .availability {
+      overflow-wrap: normal;
     }
   }
 </style>

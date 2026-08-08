@@ -35,7 +35,7 @@ test('arrow paging survives filter clicks (Bug #3)', async ({ page }) => {
   await expect(pageIndicator(page)).toHaveText(/^page 2 of/);
 
   // Also after using the pager itself.
-  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Next page' }).click();
   await expect(pageIndicator(page)).toHaveText(/^page 3 of/);
   await page.keyboard.press('ArrowLeft');
   await expect(pageIndicator(page)).toHaveText(/^page 2 of/);
@@ -58,10 +58,25 @@ test('pager is a single tab stop (roving tabindex)', async ({ page }) => {
   ).toHaveAttribute('aria-current', 'page');
 });
 
-test('windowed pager stays bounded (N9)', async ({ page }) => {
-  const buttons = page.locator('.pagination .page-number-btn');
-  expect(await buttons.count()).toBeLessThanOrEqual(5);
+test('windowed pager stays bounded and constant-width (N9)', async ({ page }) => {
+  const slots = page.locator('.pagination .page-number-btn, .pagination .ellipsis');
+  const pager = page.locator('.pagination');
+  const count = await slots.count();
+  expect(count).toBeLessThanOrEqual(7);
   await expect(page.locator('.pagination .ellipsis')).toHaveCount(1);
+
+  // The slot count must not change as you page — a varying count made the
+  // pager's width jump and wrap onto a second line at its widest.
+  const firstBox = await pager.boundingBox();
+  for (const target of [2, 3, 4, 5]) {
+    await page.getByRole('button', { name: `Page ${target}` }).click();
+    await expect(page.locator('.grid-meta .page-ind')).toHaveText(
+      new RegExp(`^page ${target} of`)
+    );
+    expect(await slots.count()).toBe(count);
+    const box = await pager.boundingBox();
+    expect(box!.height).toBeCloseTo(firstBox!.height, 0);
+  }
 });
 
 test('modified arrows never page (screen-reader shortcuts)', async ({ page }) => {
