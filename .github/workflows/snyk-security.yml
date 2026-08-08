@@ -48,13 +48,17 @@ jobs:
       # A personal access token (unlike a legacy per-account API key) isn't
       # tied to a single default org, so the CLI can't infer which org to
       # act against without this — omitting it 403s with an empty org name.
-      # Note: the CLI still calls GET /rest/orgs/{id} regardless of whether
-      # this is the org ID or its slug (tried both — same 403 either way),
-      # to resolve/validate the org. That call 403s because the PAT wasn't
-      # granted a scope covering it; it's cosmetic — the actual scan/monitor
-      # both succeed regardless. Fix at the source by granting that scope
-      # (or regenerating the PAT with it) at
-      # https://app.snyk.io/account/personal-access-tokens.
+      # Note: the CLI calls GET /rest/orgs/{id} to resolve/validate the org.
+      # That call 403s on the Free plan because the Snyk REST API requires
+      # Enterprise — Free/Team PATs can authenticate to CLI/IDE/CI-CD but
+      # do not have REST API access (see Snyk docs: "To use the Snyk API,
+      # you must be an Enterprise plan customer"). This is NOT a token scope
+      # issue — no scope grant or PAT regeneration fixes it. The 403 is
+      # cosmetic for `snyk monitor` (SCA, uses the legacy v1 API which works
+      # on Free), but `snyk code test` (SAST) hits the same 403 on its
+      # backend sync — the local analysis still runs and findings are
+      # uploaded to GitHub Code Scanning via SARIF, they just don't appear
+      # in the Snyk web UI. Upgrading to Enterprise would fix both.
       SNYK_CFG_ORG: "08ee9b45-66fd-4689-b808-50fc0e58ce15"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -110,11 +114,11 @@ jobs:
         if: success() || failure()
         run: snyk monitor --all-projects
 
-        # `snyk code test` above still fails the job on real findings (the
-        # `|| true` fallback is deliberately commented out) — but a hard
-        # error (auth, org config) can leave snyk-code.sarif empty/invalid,
-        # which upload-sarif can't parse. Only attempt the upload when the
-        # file actually contains parseable SARIF.
+        # `snyk code test` above uses `|| true` so findings don't fail the
+        # job — but a hard error (auth, org config) can leave
+        # snyk-code.sarif empty/invalid, which upload-sarif can't parse.
+        # Only attempt the upload when the file actually contains parseable
+        # SARIF.
       - name: Check SARIF output is valid
         id: sarif-check
         if: success() || failure()
