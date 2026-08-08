@@ -10,6 +10,11 @@ test.beforeEach(async ({ page }) => {
   await routeOffers(page, makeOffers(200));
   await page.goto(BASE + '/');
   await expect(page.locator('.product-card').first()).toBeVisible();
+  // index.html pulls Plus Jakarta Sans from Google Fonts with display=swap.
+  // Settle it before any geometry assertion, or a late swap changes font
+  // metrics between two measurements in the same test (same guard as
+  // visual.spec.ts).
+  await page.evaluate(() => document.fonts.ready);
 });
 
 function pageIndicator(page: import('@playwright/test').Page) {

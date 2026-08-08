@@ -105,6 +105,17 @@
     height: 38px;
     padding: 0;
   }
+  /* Explicit height, not line-box height: the webfont (Plus Jakarta Sans,
+     loaded with display=swap) has different metrics from the system-ui
+     fallback, so an auto-height Prev/Next measured 41px before the swap and
+     36px after — the row jumped 3px mid-load and never matched the 38px
+     number buttons either way. */
+  .pagination .step-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+  }
   .pagination .active-page {
     background: var(--ink);
     border-color: var(--ink);
@@ -139,6 +150,9 @@
     .pagination .page-number-btn,
     .pagination .ellipsis {
       width: 34px;
+      height: 34px;
+    }
+    .pagination .step-btn {
       height: 34px;
     }
   }
