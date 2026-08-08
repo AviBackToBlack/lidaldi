@@ -1,6 +1,6 @@
 # Test environment = pinned official Playwright image (Node LTS +
 # Chromium/Firefox/WebKit with deps) + pyenv Python 3.12.13 + make.
-FROM mcr.microsoft.com/playwright:v1.61.1-noble
+FROM mcr.microsoft.com/playwright:v1.62.0-noble
 ENV PYENV_ROOT=/opt/pyenv
 ENV PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
 ARG PYENV_REF=933d0aaf1d1190a641c3ddce484e72b1a993473d

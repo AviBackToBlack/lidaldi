@@ -26,7 +26,7 @@ make test
 ## Environment
 
 - `.devcontainer/devcontainer.json` + `docker-compose.yml` use the pinned
-  official Playwright image `mcr.microsoft.com/playwright:v1.61.1-noble`
+  official Playwright image `mcr.microsoft.com/playwright:v1.62.0-noble`
   plus pyenv Python `3.12.13` and a `lidaldi` pyenv virtualenv.
 - First run: `make setup` installs `tests/requirements.txt` into the pyenv
   `lidaldi` environment and installs `tests/e2e/` npm deps. `make test` does

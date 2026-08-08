@@ -47,6 +47,12 @@ export async function routeOffers(
   page: Page,
   offers: FixtureOffer[]
 ): Promise<void> {
+  // WebKit 26 (Playwright 1.62) wedges the page — every subsequent protocol
+  // call times out — when a service worker registers while page.route()
+  // interception is active. The AlertsModal registers /sw.js on open, which
+  // hung all four modal specs on webkit only. These SPA specs don't exercise
+  // the worker; pwa.spec.ts / pwa-push.spec.ts do, and they never mock routes.
+  await page.route('**/sw.js', (route) => route.abort());
   await page.route('**/offers.json', (route) =>
     route.fulfill({ json: offers })
   );

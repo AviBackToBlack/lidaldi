@@ -1,4 +1,5 @@
 node_modules/
 dist/
-# The repo-root (Python) .gitignore excludes "lib/"; re-include the app source.
+# Belt and braces: the repo-root (Python) .gitignore now anchors its build
+# dirs ("/lib/"), but keep re-including the app source in case that regresses.
 !src/lib/
