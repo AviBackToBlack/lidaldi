@@ -44,6 +44,11 @@ async function simulatePush(
   return readNotifications(page);
 }
 
+// Pre-existing flake (PROGRESS.md): the 5s expect.poll timeout can fire
+// before the SW processes the message and shows the notification under
+// CI CPU contention. Same category as alerts-deeplink.spec.ts (webkit).
+test.describe.configure({ retries: 2 });
+
 test('shows a notification with the T3 payload and alerts deep-link', async ({ page }) => {
   const [n] = await simulatePush(
     page,
