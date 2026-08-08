@@ -105,6 +105,7 @@ self.addEventListener("push", (event) => {
 // Test seam: lets E2E tests exercise the exact push-notification path
 // without a push service (real push events cannot be injected portably).
 self.addEventListener("message", (event) => {
+  if (event.origin !== self.location.origin) return;
   const d: unknown = event.data;
   if (
     typeof d === "object" &&
