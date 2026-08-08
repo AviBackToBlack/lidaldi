@@ -12,7 +12,15 @@
 
 export type PagerItem = number | "ellipsis-left" | "ellipsis-right";
 
-/** Slot counts per breakpoint; must be odd and >= 5. */
+/**
+ * Slot counts per breakpoint; must be odd and >= 5.
+ *
+ * The count decides how many neighbours the current page gets, via
+ * `radius = (slots - 5) / 2` in the middle case. So 5 slots means radius 0
+ * — mid-range mobile renders `1 … cur … last` with no ±1 neighbours, a
+ * deliberate trade-off because 7 slots cannot fit one line at 320px even
+ * with the compacted mobile sizing. 7 is the minimum for ±1 neighbours.
+ */
 export const PAGER_SLOTS_DESKTOP = 7;
 export const PAGER_SLOTS_MOBILE = 5;
 

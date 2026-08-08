@@ -52,6 +52,10 @@ export async function routeOffers(
   // interception is active. The AlertsModal registers /sw.js on open, which
   // hung all four modal specs on webkit only. These SPA specs don't exercise
   // the worker; pwa.spec.ts / pwa-push.spec.ts do, and they never mock routes.
+  // Blast radius: this applies to *every* routeOffers() caller (a11y,
+  // alerts-deeplink, keyboard-paging, visual), and registerServiceWorker()
+  // swallows the rejection with a console warning — so an offline/caching
+  // assertion added to one of those specs would silently test a no-SW app.
   await page.route('**/sw.js', (route) => route.abort());
   await page.route('**/offers.json', (route) =>
     route.fulfill({ json: offers })
