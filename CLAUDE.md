@@ -45,7 +45,7 @@ Living docs (current state — read these for how the system works today):
 | [`docs/observability.md`](docs/observability.md) | Prometheus metric inventory — **frozen contract**, enforced by `tests/unit/test_metrics_parity.py`. All 20 metric names, types, labels; Telegram alerting is mentioned here too. |
 | [`docs/sync-contract.md`](docs/sync-contract.md) | The sync API contract — **frozen**, GET/POST semantics for `/api/sync/{code}`, and critically the client-side `lastVisit` self-race rules (rule 2 is the one that's easy to accidentally violate). Read before touching `sync_server.py`, `client.ts`, or `App.svelte`'s boot handshake. |
 | [`docs/testing.md`](docs/testing.md) | One-page pointer/summary; the real detail is in `tests/README.md`. |
-| [`docs/cutover-runbook.md`](docs/cutover-runbook.md) | Exact step-by-step VPS migration procedure (legacy → refactored stack), each step backed by a `tests/migration/test_rehearsal.py` assertion. Includes the rollback procedure and the known gaps (F1: no automated config-value migration; F2: resolved). |
+| [`docs/cutover-runbook.md`](docs/cutover-runbook.md) | Exact step-by-step VPS migration procedure (legacy → refactored stack). **Completed 2026-07-07** — kept as a historical record of the cutover that was performed. Includes the rollback procedure and the known gaps (F1: no automated config-value migration; F2: resolved). |
 | [`tests/README.md`](tests/README.md) | Test harness reference: all tiers (`make test-*`), environment/container details, k6 load-tier notes (rate-limit design, thresholds), CI wiring. |
 | [`website/README.md`](website/README.md) | One-paragraph freeze notice for the legacy `website/` frontend — don't build on it. |
 
@@ -110,12 +110,11 @@ see the webkit-flake investigation below for the actual workflow.
 | `test-e2e` | Playwright (`tests/e2e/`), chromium+firefox+webkit + visual snapshots | |
 | `test-load` | k6 vs a real `sync_server` | **fails, never skips**, if k6/server unavailable |
 | `test-security` | `pip-audit`, `bandit` (medium+), `npm audit` (`--audit-level=high`) | any finding fails the build |
-| `test-migration` | separate CI job, not part of `make test` | full VPS cutover rehearsal in a sandbox |
 | `test-zap` | opt-in only, not in CI | OWASP ZAP baseline scan |
 
 Full details: `tests/README.md`, `docs/testing.md`. CI (`.github/workflows/ci.yml`)
-runs `make test` and `make test-migration` inside this exact same Docker
-image, so a green local container run means a green CI run.
+runs `make test` inside this exact same Docker image, so a green local
+container run means a green CI run.
 
 ## Frontend (`frontend/`)
 

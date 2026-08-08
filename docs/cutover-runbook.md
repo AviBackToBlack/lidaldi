@@ -1,13 +1,19 @@
 # LIDALDI VPS Cutover Runbook (T15)
 
+> **COMPLETED 2026-07-07** — the cutover was performed successfully and the
+> new stack is live. This runbook is kept as a historical record of the
+> procedure. The `tests/migration/` rehearsal suite and `make test-migration`
+> CI job have been removed; ongoing `deploy/update.sh` updates are covered by
+> `tests/installer/` (`make test-installer`).
+
 Exact operator steps to migrate the production VPS from the legacy system
 (static `website/` rendering, legacy `config.py`/`settings.py`, old system Python)
 to the refactored stack. **Do NOT execute against the real VPS before Hard
 Stop #2 sign-off** (PROGRESS.md).
 
-Every step is proven by an automated rehearsal assertion in
-`tests/migration/test_rehearsal.py` (run with `make test-migration`),
-executed against a sandboxed simulation of the production box:
+Every step was proven by an automated rehearsal assertion in
+`tests/migration/test_rehearsal.py` (since removed), executed against a
+sandboxed simulation of the production box:
 legacy operator configs, populated SYNC_DIR profiles (alerts, lastVisit,
 push subscriptions, tombstones), the live VAPID PEM, legacy web root and
 cron/systemd/nginx artifacts.

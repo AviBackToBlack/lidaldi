@@ -12,7 +12,7 @@ PYTHON := PYENV_ROOT=$(PYENV_ROOT) PYENV_VERSION=$(PYENV_VIRTUALENV_NAME) $(PYEN
 PIP := PYENV_ROOT=$(PYENV_ROOT) PYENV_VERSION=$(PYENV_VIRTUALENV_NAME) $(PYENV_BIN) exec pip
 PYENV_STAMP := $(PYENV_ROOT)/versions/$(PYENV_VIRTUALENV_NAME)/.tests-requirements.ok
 
-.PHONY: setup test test-unit test-installer test-e2e test-load test-security test-zap test-migration
+.PHONY: setup test test-unit test-installer test-e2e test-load test-security test-zap
 
 setup: $(PYENV_STAMP) tests/e2e/node_modules/.ok
 
@@ -64,13 +64,6 @@ test-security: $(PYENV_STAMP)
 	else \
 		echo "test-security: frontend/ not present yet — skipping npm audit"; \
 	fi
-
-test-migration: $(PYENV_STAMP)
-	# T15 migration rehearsal: full VPS cutover in a sandbox (legacy
-	# fixture -> update.sh dry-run/apply -> pipeline + sync + push smoke
-	# -> rollback). Needs network (real pip install + frontend build);
-	# runs as its own CI job, not part of `make test`.
-	$(PYTHON) -m pytest tests/migration
 
 test-zap:
 	# Opt-in ZAP baseline scan (D4). NOT part of `make test` or default CI.
