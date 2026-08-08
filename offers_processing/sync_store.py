@@ -49,10 +49,15 @@ def _validate_code(code):
     boundary; this guard protects sync_store if a future caller forgets
     to validate.  Allows alphanumeric, dash, underscore (no path
     separators, no '..', no null bytes).
+
+    os.path.basename() is applied after validation so CodeQL's taint
+    tracker recognises the return value as sanitised (it models basename
+    as a path-cleaning function).  Since the regex already blocks all
+    path separators, basename is a no-op on valid input.
     """
     if not isinstance(code, str) or not _CODE_SAFE_RE.match(code):
         raise ValueError("invalid sync code")
-    return code
+    return os.path.basename(code)
 
 
 def data_path(code):
