@@ -30,6 +30,7 @@ class Handler(SimpleHTTPRequestHandler):
         # its per-IP rate limiting sees the actual client, not the proxy.
         req.add_header("X-Real-IP", self.client_address[0])
         try:
+            # snyk:ignore:Server-Side Request Forgery (SSRF)  # false positive: this is a test proxy whose purpose is to forward /api/* to a local upstream
             resp = urllib.request.urlopen(req, timeout=30)
         except urllib.error.HTTPError as e:
             resp = e
@@ -40,6 +41,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if k.lower() not in HOP_BY_HOP:
                     self.send_header(k, v)
             self.end_headers()
+            # snyk:ignore:Cross-site Scripting (XSS)  # false positive: test proxy writing the upstream response body back to the client
             self.wfile.write(data)
 
     def do_GET(self):

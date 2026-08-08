@@ -31,9 +31,11 @@ def main():
         serialization.NoEncryption(),
     )
     pem_path = os.path.join(out_dir, "vapid_private.pem")
+    # snyk:ignore:Path Traversal  # false positive: operator-run CLI key-gen tool; out_dir is a manual argument
     with open(pem_path, "wb") as f:
         f.write(pem)
     try:
+        # snyk:ignore:Path Traversal  # false positive: operator-run CLI key-gen tool; pem_path is derived from a manual out_dir argument
         os.chmod(pem_path, 0o600)
     except OSError:
         pass  # Windows doesn't support Unix permissions

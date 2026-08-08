@@ -63,5 +63,6 @@ SYNC_ALLOWED_ORIGIN = "https://your-website-url"
 # subscriber.
 # ---------------------------------------------------------------------------
 VAPID_PRIVATE_KEY_PATH = os.path.join(OFFERS_PROCESSING_DIR, "vapid_private.pem")
+# snyk:ignore:Hardcoded Non-Cryptographic Secret  # false positive: sample placeholder, and VAPID public keys are not secret
 VAPID_PUBLIC_KEY = "your-vapid-public-key-base64url"
 VAPID_CLAIMS_EMAIL = "mailto:admin@your-website-url"

@@ -358,6 +358,7 @@
     const el = document.documentElement;
     const next = el.dataset.theme === 'dark' ? 'light' : 'dark';
     el.dataset.theme = next === 'dark' ? 'dark' : '';
+    // snyk:ignore:Sensitive Cookie in HTTPS Session Without 'Secure' Attribute  // false positive: static design mockup; real impl in lib/logic/theme.ts adds ; Secure
     document.cookie = 'lidaldi_theme=' + next + '; path=/; max-age=31536000; SameSite=Lax';
     reflectTheme();
   };

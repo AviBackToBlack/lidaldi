@@ -1107,6 +1107,7 @@ document.addEventListener("DOMContentLoaded", function () {
     alerts.forEach(function (alert, i) {
       var item = document.createElement("div");
       item.className = "alert-item";
+      // snyk:ignore:DOM-based Cross-site Scripting (XSS)  // false positive: alert.keyword is passed through escapeHtml() (defined below); static parts are literals
       item.innerHTML =
         '<div class="alert-item-info">' +
         '<span class="alert-item-keyword">' +

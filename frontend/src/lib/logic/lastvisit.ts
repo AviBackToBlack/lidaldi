@@ -64,6 +64,7 @@ export function adoptServerLastVisit(bootLastVisit: number, serverLastVisit: unk
 }
 
 const PERSISTENT_KEY = "lastVisit";
+// snyk:ignore:Hardcoded Non-Cryptographic Secret  // false positive: sessionStorage key name, not a secret
 const SESSION_KEY = "lidaldi_session_last_visit";
 
 /** Browser-backed storage: localStorage + sessionStorage, cookie fallback read. */

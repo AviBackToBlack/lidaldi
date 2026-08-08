@@ -87,6 +87,7 @@ describe("browserLastVisitStorage (jsdom)", () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+    // snyk:ignore:Sensitive Cookie in HTTPS Session Without 'Secure' Attribute  // false positive: jsdom is not a secure context; Secure would break the test
     document.cookie = "lastVisit=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
   });
   it("persists via localStorage and session snapshot via sessionStorage", () => {
@@ -99,6 +100,7 @@ describe("browserLastVisitStorage (jsdom)", () => {
     expect(s.getSessionBoot()).toBe(45);
   });
   it("falls back to the legacy lastVisit cookie", () => {
+    // snyk:ignore:Sensitive Cookie in HTTPS Session Without 'Secure' Attribute  // false positive: jsdom is not a secure context; Secure would break the test
     document.cookie = "lastVisit=777; path=/";
     expect(browserLastVisitStorage().getPersistent()).toBe(777);
   });
