@@ -211,19 +211,33 @@ kills push for every subscriber.
 
 ## Frontend UI
 
-> **Placeholder (T6 in flight):** the full feature UI (filtering, paging,
-> alerts modal, deep-linked alert views) is being ported to Svelte and is not
-> yet merged. This section will document the finished UI. Until then, the
-> scaffold in `frontend/` covers data loading, sync, push wiring and the PWA
-> shell; the legacy UI in `website/` remains what production serves.
+The Svelte 5 SPA in `frontend/` is what production serves. `website/` is the
+frozen legacy frontend, kept for rollback context only — see
+[website/README.md](website/README.md).
+
+| Area | What it does |
+|---|---|
+| Filter bar | Store segmented control (Both/ALDI/LIDL), availability chips (All / Available now / ✦ New for you / per-date), category select, price min–max, sort, debounced search, Reset |
+| Grid | Responsive offer cards with store accent, price pill, availability date, and a description popover that opens on hover **and** focus (WCAG 1.4.13) |
+| Pager | Windowed page numbers with a constant slot count (fewer slots on narrow viewports), plus global Left/Right arrow-key paging |
+| Alerts | Keyword-alert modal and a deep-linked alerts view (`?view=alerts&alert=<id>`, the push notification's target), backed by a sync code shared across devices |
+| Theme | Light/dark toggle persisted in a 1-year `lidaldi_theme` cookie, falling back to `prefers-color-scheme`; a pre-paint script in `index.html` applies it before first render, so there's no flash |
+| State | Filters, page and view are URL-encoded (`frontend/src/lib/urlstate.ts`), so Back/Forward and link-sharing work |
+
+Filtering, paging, page-size, alert-matching and `lastVisit` logic live as
+pure functions in `frontend/src/lib/logic/` and are unit-tested with Vitest;
+the rendered result is pinned by per-engine Playwright visual snapshots.
 
 ## Documentation
 
-- [docs/operations.md](docs/operations.md) — operations guide: installer, backups, VAPID, deploy discipline, ZAP scans
+- [docs/operations.md](docs/operations.md) — operations guide: installer, backups, VAPID, deploy discipline, security scans
 - [docs/observability.md](docs/observability.md) — Prometheus metric inventory (frozen contract)
 - [docs/testing.md](docs/testing.md) — testing guide (pointer to tests/README.md)
 - [docs/sync-contract.md](docs/sync-contract.md) — frozen sync API contract
-- `REFACTOR_RESEARCH_AND_ARCHITECTURE.md`, `LOOP1_DELIVERABLES.md`, `PROGRESS.md`, `REFACTOR_OPERATOR_RUNBOOK.md` — refactor planning/state documents (not operator docs)
+- [docs/cutover-runbook.md](docs/cutover-runbook.md) — the legacy → Svelte VPS cutover procedure (completed 2026-07-07; kept as a historical record)
+- [SECURITY.md](SECURITY.md) — vulnerability disclosure policy
+- [CLAUDE.md](CLAUDE.md) — conventions and gotchas for working on this repo (agents and humans alike)
+- `REFACTOR_MASTER_GOAL.md`, `REFACTOR_RESEARCH_AND_ARCHITECTURE.md`, `REFACTOR_OPERATOR_RUNBOOK.md`, `LOOP1_DELIVERABLES.md`, `DESIGN_BRIEF.md`, `PROGRESS.md` — refactor planning/state documents (archaeology, not operator docs)
 
 🔗 **Live Website:** [https://lidaldi.neit.me/](https://lidaldi.neit.me/)
 

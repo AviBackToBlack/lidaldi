@@ -162,7 +162,29 @@ Managed by the installer (rendered from the repo templates with your
 
 ## Security scans
 
-`pip-audit`, `bandit` and `npm audit` run in every `make test` (default CI).
+Four automated layers run against `main` (plus the opt-in ZAP scan below):
+
+| Layer | Where | Gating? |
+|---|---|---|
+| `pip-audit`, `bandit` (medium+), `npm audit` (high+) | `make test-security`, so every CI run | **Yes** — any finding fails the build |
+| Snyk Code (SAST) + Snyk Open Source (SCA) | `.github/workflows/snyk-security.yml`, on push/PR to `main` | No — findings are uploaded to the GitHub **Security → Code scanning** tab for review |
+| CodeQL | GitHub *default setup* (repo Settings → Code security), weekly + on push. Note there is **no workflow file** for it — it won't show up in `.github/workflows/` | No — reports to the same Code scanning tab |
+| Dependabot | `.github/dependabot.yml` — pip, npm (`frontend/`, `tests/e2e/`), github-actions, docker-compose, devcontainers | No — opens PRs |
+
+Two Snyk gotchas worth knowing before you debug that workflow:
+
+- **The trailing `403 Forbidden` is expected and cosmetic.** The CLI calls
+  `GET /rest/orgs/{id}` to resolve the org, and the Snyk REST API is
+  Enterprise-only — Free/Team tokens authenticate fine for CLI/CI but get a
+  403 there. No scope grant or token regeneration fixes it. Consequence:
+  `snyk monitor` works (legacy v1 API), and `snyk code test` still analyses
+  locally and uploads SARIF to GitHub, but its results don't appear in the
+  Snyk web UI.
+- **False positives are suppressed inline**, with `snyk:ignore` annotations
+  at the finding site (test fixtures, sample config, the legacy `website/`
+  JS, design mockups) rather than in a central `.snyk` policy file — so
+  grep for `snyk:ignore` if a finding disappears mysteriously.
+
 The OWASP ZAP baseline scan is **opt-in only** (decision D4), from a host
 with docker compose:
 

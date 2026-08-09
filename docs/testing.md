@@ -16,9 +16,15 @@ webkit, visual snapshots) + `test-load` (pinned k6 vs a real sync server;
 fails, never skips) + `test-security` (pip-audit, bandit, npm audit).
 
 `make test-zap` (OWASP ZAP baseline) is **opt-in only** and not part of
-`make test` or default CI (decision D4) — see
+`make test` or default CI (decision D4). Snyk, CodeQL and Dependabot run
+outside `make test` entirely — all of it is described in
 [operations.md](operations.md#security-scans).
 
 All suites are deterministic: no live calls to aldi.ie / lidl.ie or push
-services. CI (`.github/workflows/ci.yml`) runs `make test` inside the same
-pinned Playwright image as the local container, so results match.
+services. The one exception is the webfont — the e2e specs load the real
+`fonts.googleapis.com` stylesheet, so specs that measure element geometry
+must await `document.fonts.ready` first (see
+[../tests/README.md](../tests/README.md#known-flakes-scoped-retries-not-app-bugs)).
+
+CI (`.github/workflows/ci.yml`) runs `make test` inside the same pinned
+Playwright image as the local container, so results match.

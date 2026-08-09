@@ -40,7 +40,7 @@ Living docs (current state — read these for how the system works today):
 
 | File | What's in it |
 |---|---|
-| [`README.md`](README.md) | Main entry point: feature list, architecture diagram, data-file table, repo layout, requirements, quickstart, full config key map (legacy `config.py` → TOML/.env), deploy summary, push/PWA notes. **Has one stale section** — see below. |
+| [`README.md`](README.md) | Main entry point: feature list, architecture diagram, data-file table, repo layout, requirements, quickstart, full config key map (legacy `config.py` → TOML/.env), deploy summary, push/PWA notes, frontend UI feature map. |
 | [`docs/operations.md`](docs/operations.md) | Operator procedures: `deploy/update.sh` usage, config-merge rules, backups, VAPID key handling, service-worker cache-bump discipline, systemd/nginx/cron/logrotate, security scans. |
 | [`docs/observability.md`](docs/observability.md) | Prometheus metric inventory — **frozen contract**, enforced by `tests/unit/test_metrics_parity.py`. All 20 metric names, types, labels; Telegram alerting is mentioned here too. |
 | [`docs/sync-contract.md`](docs/sync-contract.md) | The sync API contract — **frozen**, GET/POST semantics for `/api/sync/{code}`, and critically the client-side `lastVisit` self-race rules (rule 2 is the one that's easy to accidentally violate). Read before touching `sync_server.py`, `client.ts`, or `App.svelte`'s boot handshake. |
@@ -48,6 +48,8 @@ Living docs (current state — read these for how the system works today):
 | [`docs/cutover-runbook.md`](docs/cutover-runbook.md) | Exact step-by-step VPS migration procedure (legacy → refactored stack). **Completed 2026-07-07** — kept as a historical record of the cutover that was performed. Includes the rollback procedure and the known gaps (F1: no automated config-value migration; F2: resolved). |
 | [`tests/README.md`](tests/README.md) | Test harness reference: all tiers (`make test-*`), environment/container details, k6 load-tier notes (rate-limit design, thresholds), CI wiring. |
 | [`website/README.md`](website/README.md) | One-paragraph freeze notice for the legacy `website/` frontend — don't build on it. |
+| [`SECURITY.md`](SECURITY.md) | Vulnerability disclosure policy: `main` is the only supported version, report privately via the GitHub Security tab. Names the automated scanning (Dependabot, Snyk, CodeQL) as already-covered ground. |
+| [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) | The PR checklist contributors get pre-filled. |
 
 Historical / process docs from the Svelte rewrite (archaeology only — **do
 not treat as current state**, don't feel obliged to keep them updated):
@@ -60,11 +62,6 @@ not treat as current state**, don't feel obliged to keep them updated):
 | [`LOOP1_DELIVERABLES.md`](LOOP1_DELIVERABLES.md) | The signed-off Loop 1 spec: codebase analysis findings, the confirmed known-bugs root causes plus the bug-discovery pass (N1–N14), task DAG (T0–T15), team/role design. This is the spec Loop 2 was implemented against. |
 | [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | The brief handed to Claude Design (Anthropic Labs) for the visual redesign — page structure, design goals/constraints, deliverables (`frontend/design/tokens.css`, mockups). |
 | [`PROGRESS.md`](PROGRESS.md) | The durable task ledger for the whole rewrite: phase status, per-task (T0–T15) worker/PR/verifier record, out-of-scope findings log, post-deploy log. The most useful of the historical docs for "why does X work this way" questions. |
-
-**README's stale section**: the "Frontend UI" section still says the
-Svelte UI is a "Placeholder (T6 in flight)" not yet merged — it's actually
-long since merged and is what's live in production. Fix it if you're
-touching README anyway.
 
 ## Platform constraint: POSIX only for the backend
 
@@ -167,6 +164,14 @@ left `vite-plugin-svelte` (peer `vite ^6`) and `vitest` (dependency
 with a real `npm install` + `npm ls` + full `make test`, not just reading
 version ranges.
 
+**`frontend/.npmrc` sets `legacy-peer-deps=true`** (commit `71ce83d`, added
+because `svelte-check` hadn't yet declared a peer range covering TypeScript
+7). That flag makes npm *silently ignore every peer-dependency conflict in
+`frontend/`* — which removes exactly the install-time warning the check
+above relies on. So the `npm ls` dedupe step isn't belt-and-braces here,
+it's the only signal left. If `svelte-check` gains a TS 7 peer range, drop
+the file rather than keeping a repo-wide suppression around.
+
 ### Known flaky test: `alerts-deeplink.spec.ts` (webkit only)
 
 `deep link restores AlertsView with matches and highlight` intermittently
@@ -209,9 +214,10 @@ documented for `pwa-push.spec.ts` (`chromium-push` project) in
 - **`ErrorCheckingPipeline`** (`scraper/lidaldi/pipelines.py`) fails the
   whole scrape if any of several thresholds is crossed (see
   `scraper/lidaldi/pipelines.py:88-103`): `total_items` is 0 or below a
-  hardcoded minimum (currently 90 — was 100 until LIDL's real non-food
-  inventory dropped below that; verify against the live site before
-  assuming a threshold failure means a bug — see
+  hardcoded minimum (currently **60** — 100 → 90 → 60, each time because
+  LIDL's real non-food inventory dropped below the old floor and sank an
+  otherwise-healthy scrape; verify against the live site before assuming a
+  threshold failure means a bug — see
   `scraper/lidaldi/pipelines.py:90`); the ERROR-log ratio exceeds 10%
   (`error_ratio > 0.1` — a *single* `logger.error()` does **not** sink the
   run, only >10% of items producing ERROR entries does); the dropped-item
@@ -291,3 +297,18 @@ losing/regenerating it kills push for every subscriber). Full procedure:
   `.push-row` (+84px). That's a genuine capability change, not a
   regression — the `alerts-modal-webkit.png` baseline was re-recorded for
   it. Expect capability-gated UI to shift on browser bumps.
+- **The e2e suite is not actually network-isolated: it loads Google Fonts.**
+  `playwright.config.ts` claims "local static fixtures only — no live
+  network", but `frontend/index.html` pulls Plus Jakarta Sans from
+  `fonts.googleapis.com` with `display=swap` on every spec. Because the
+  webfont's metrics differ from the system-ui fallback, any auto-height
+  element changes size when the swap lands, and CI's variable fetch latency
+  decides whether that happens before or during a test. It sank
+  `keyboard-paging.spec.ts`'s pager assertion intermittently (measured 41px
+  on the fallback, 38px after the swap → `Expected: 41 / Received: 38`,
+  reproducible by delaying `fonts.gstatic.com`). Two rules follow: **never
+  size a component off its line box when the layout has to be stable** (the
+  pager's Prev/Next buttons now carry an explicit `height`, commit
+  `6e4c3b6`), and **`await page.evaluate(() => document.fonts.ready)`
+  before any geometry assertion**. Self-hosting the woff2 would remove the
+  whole category — metrics are identical, so baselines would survive.
