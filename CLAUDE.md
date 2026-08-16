@@ -274,8 +274,7 @@ losing/regenerating it kills push for every subscriber). Full procedure:
   docker image as well". Dependabot only ever bumps the npm side. This has
   now happened twice (`c9db2ea` bumped, `9a4136e` reverted it, `1c5f70d`
   bumped again and left `main` fully red until the image was bumped to
-  1.62.0 to match; PR #63 bumped npm to 1.62.1 and the image followed).
-  Bump both, plus the version strings in this file and
+  1.62.0 to match). Bump both, plus the version strings in this file and
   `tests/README.md`, and re-run the visual tier.
 - **Root `.gitignore` patterns aren't anchored unless you anchor them.**
   The Python-artifact block's `lib/` matched `frontend/src/lib/` at any
