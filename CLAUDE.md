@@ -85,7 +85,7 @@ docker build -f .devcontainer/Dockerfile -t lidaldi-test:local .
 docker run --rm --ipc=host -v "$PWD:/work" -w /work -e CI=true lidaldi-test:local make test
 
 # just the frontend, iterating
-docker run --rm -v "$PWD/frontend:/work" -w /work mcr.microsoft.com/playwright:v1.62.0-noble bash -c "npm ci && npm run build"
+docker run --rm -v "$PWD/frontend:/work" -w /work mcr.microsoft.com/playwright:v1.62.1-noble bash -c "npm ci && npm run build"
 ```
 
 On Windows/Git Bash, `docker run -v` with a Windows path needs
