@@ -168,7 +168,7 @@ Four automated layers run against `main` (plus the opt-in ZAP scan below):
 |---|---|---|
 | `pip-audit`, `bandit` (medium+), `npm audit` (high+) | `make test-security`, so every CI run | **Yes** — any finding fails the build |
 | Snyk Code (SAST) + Snyk Open Source (SCA) | `.github/workflows/snyk-security.yml`, on push/PR to `main` | No — findings are uploaded to the GitHub **Security → Code scanning** tab for review |
-| CodeQL | GitHub *default setup* (repo Settings → Code security), weekly + on push. Note there is **no workflow file** for it — it won't show up in `.github/workflows/` | No — reports to the same Code scanning tab |
+| CodeQL | `.github/workflows/codeql.yml`, on push/PR to `main` and weekly | No — reports to the same Code scanning tab |
 | Dependabot | `.github/dependabot.yml` — pip, npm (`frontend/`, `tests/e2e/`), github-actions, docker-compose, devcontainers | No — opens PRs |
 
 Two Snyk gotchas worth knowing before you debug that workflow:
