@@ -1,74 +1,129 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
 version: 2
+
 updates:
-  - package-ecosystem: "devcontainers"
-    directory: "/"
+  - package-ecosystem: devcontainers
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: monthly
+      time: "06:00"
+      timezone: Europe/Dublin
+    rebase-strategy: disabled
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "devcontainers"]
+    commit-message:
+      prefix: "deps"
     groups:
-      minor-patch:
+      routine:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      security-minor-patch:
+        applies-to: security-updates
+        patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  - package-ecosystem: "docker-compose"
-    directory: "/"
+  - package-ecosystem: docker-compose
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: monthly
+      time: "06:02"
+      timezone: Europe/Dublin
+    rebase-strategy: disabled
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "deps"
     groups:
-      minor-patch:
+      routine:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      security-minor-patch:
+        applies-to: security-updates
+        patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
+      day: monday
+      time: "06:04"
+      timezone: Europe/Dublin
+    rebase-strategy: disabled
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "ci(deps)"
     groups:
-      minor-patch:
+      github-actions:
+        applies-to: version-updates
+        patterns: ["*"]
+      github-actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  - package-ecosystem: "npm"
-    directory: "/frontend"
+  - package-ecosystem: npm
+    directories:
+      - /frontend
+      - /tests/e2e
     schedule:
-      interval: "weekly"
+      interval: monthly
+      time: "06:06"
+      timezone: Europe/Dublin
+    rebase-strategy: disabled
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "npm"]
+    commit-message:
+      prefix: "deps"
     groups:
-      # vite, its Svelte plugin, and vitest are version-locked to each
-      # other (see CLAUDE.md — PR #40 bumped vite alone and broke both).
-      # Group them so a bump always arrives as one PR to check together.
+      # These versions are intentionally kept compatible. A previous isolated
+      # Vite bump broke the Svelte/Vitest toolchain, so keep them atomic.
       vite-toolchain:
+        applies-to: version-updates
         patterns:
           - "vite"
           - "@sveltejs/vite-plugin-svelte"
           - "vitest"
-      minor-patch:
-        update-types: ["minor", "patch"]
+      routine:
+        applies-to: version-updates
+        patterns: ["*"]
         exclude-patterns:
           - "vite"
           - "@sveltejs/vite-plugin-svelte"
           - "vitest"
-
-  - package-ecosystem: "npm"
-    directory: "/tests/e2e"
-    schedule:
-      interval: "weekly"
-    groups:
-      minor-patch:
+          # Playwright's npm package and the browser image in
+          # .devcontainer/Dockerfile must move together. Keep this visible as
+          # a standalone PR so the image/docs can be updated atomically.
+          - "@playwright/test"
+        update-types: ["minor", "patch"]
+      security-minor-patch:
+        applies-to: security-updates
+        patterns: ["*"]
+        exclude-patterns:
+          - "@playwright/test"
         update-types: ["minor", "patch"]
 
-  - package-ecosystem: "pip"
-    directory: "/"
+  - package-ecosystem: pip
+    directories:
+      - /
+      - /tests
     schedule:
-      interval: "weekly"
+      interval: monthly
+      time: "06:08"
+      timezone: Europe/Dublin
+    rebase-strategy: disabled
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "deps"
     groups:
-      minor-patch:
+      routine:
+        applies-to: version-updates
+        patterns: ["*"]
         update-types: ["minor", "patch"]
-
-  - package-ecosystem: "pip"
-    directory: "/tests"
-    schedule:
-      interval: "weekly"
-    groups:
-      minor-patch:
+      security-minor-patch:
+        applies-to: security-updates
+        patterns: ["*"]
         update-types: ["minor", "patch"]

@@ -1,0 +1,39 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Lidaldi. Do not include secrets, credentials, cookies, or private data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the incorrect behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest reliable reproduction you can.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Relevant browser, OS, container/devcontainer, command, commit/version, or deployment context.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or additional context
+      description: Redact secrets and personal/private data before posting.
+    validations:
+      required: false
