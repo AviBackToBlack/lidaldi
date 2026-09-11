@@ -93,10 +93,16 @@ updates:
           - "vite"
           - "@sveltejs/vite-plugin-svelte"
           - "vitest"
+          # Playwright's npm package and the browser image in
+          # .devcontainer/Dockerfile must move together. Keep this visible as
+          # a standalone PR so the image/docs can be updated atomically.
+          - "@playwright/test"
         update-types: ["minor", "patch"]
       security-minor-patch:
         applies-to: security-updates
         patterns: ["*"]
+        exclude-patterns:
+          - "@playwright/test"
         update-types: ["minor", "patch"]
 
   - package-ecosystem: pip
