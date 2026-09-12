@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Third-party Docker actions are full-SHA pinned and explicitly allowlisted.
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
       # Build the same image docker compose uses locally (pyenv Python 3.12.13
       # + Playwright browsers + k6) so local == CI. Layers are cached in the
