@@ -236,7 +236,6 @@ the rendered result is pinned by per-engine Playwright visual snapshots.
 - [docs/sync-contract.md](docs/sync-contract.md) — frozen sync API contract
 - [docs/cutover-runbook.md](docs/cutover-runbook.md) — the legacy → Svelte VPS cutover procedure (completed 2026-07-07; kept as a historical record)
 - [SECURITY.md](SECURITY.md) — vulnerability disclosure policy
-- [AGENTS.md](AGENTS.md) — repository-wide instructions for coding agents and automation
 - [CLAUDE.md](CLAUDE.md) — conventions and gotchas for working on this repo (agents and humans alike)
 - `REFACTOR_MASTER_GOAL.md`, `REFACTOR_RESEARCH_AND_ARCHITECTURE.md`, `REFACTOR_OPERATOR_RUNBOOK.md`, `LOOP1_DELIVERABLES.md`, `DESIGN_BRIEF.md`, `PROGRESS.md` — refactor planning/state documents (archaeology, not operator docs)
 
