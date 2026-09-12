@@ -19,7 +19,7 @@ If your change affects frontend/end-to-end behavior, run the relevant frontend a
 - Preserve scraper/data normalization contracts unless an intentional migration is documented.
 - Keep the Vite, `@sveltejs/vite-plugin-svelte`, and Vitest toolchain compatible; these dependencies are intentionally updated together.
 - Do not commit credentials, cookies, real `.env` values, private deployment data, or generated secrets.
-- Required CI and security checks must pass before merge.
+- Required CI and security checks must pass, and review conversations must be resolved before merge.
 
 ## Security issues
 
