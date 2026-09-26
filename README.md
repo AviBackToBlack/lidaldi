@@ -219,7 +219,7 @@ frozen legacy frontend, kept for rollback context only — see
 |---|---|
 | Filter bar | Store segmented control (Both/ALDI/LIDL), availability chips (All / Available now / ✦ New for you / per-date), category select, price min–max, sort, debounced search, Reset |
 | Grid | Responsive offer cards with store accent, price pill, availability date, and a description popover that opens on hover **and** focus (WCAG 1.4.13) |
-| Pager | Windowed page numbers with a constant slot count (fewer slots on narrow viewports), plus global Left/Right arrow-key paging |
+| Pager | Windowed page numbers with a constant slot count (fewer slots on narrow viewports), plus global Left/Right arrow-key paging and touch-swipe paging on the grid (swipe left = next) |
 | Alerts | Keyword-alert modal and a deep-linked alerts view (`?view=alerts&alert=<id>`, the push notification's target), backed by a sync code shared across devices |
 | Theme | Light/dark toggle persisted in a 1-year `lidaldi_theme` cookie, falling back to `prefers-color-scheme`; a pre-paint script in `index.html` applies it before first render, so there's no flash |
 | State | Filters, page and view are URL-encoded (`frontend/src/lib/urlstate.ts`), so Back/Forward and link-sharing work |
