@@ -32,9 +32,10 @@ test: test-unit test-installer test-e2e test-load test-security
 
 test-unit: $(PYENV_STAMP)
 	$(PYTHON) -m pytest tests/unit
-	# Frontend unit tests (Vitest) are gated on frontend/ existing (created by T5).
+	# Frontend unit tests (Vitest) + type check (svelte-check + tsc for the SW)
+	# are gated on frontend/ existing (created by T5).
 	@if [ -d frontend ]; then \
-		cd frontend && npm ci && npx vitest run; \
+		cd frontend && npm ci && npx vitest run && npm run check; \
 	else \
 		echo "test-unit: frontend/ not present yet — skipping Vitest"; \
 	fi
