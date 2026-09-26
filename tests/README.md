@@ -19,7 +19,7 @@ make test
 
 | Target | What it runs |
 |---|---|
-| `make test-unit` | pytest (`tests/unit/`); Vitest in `frontend/` once it exists (T5) — skipped gracefully until then |
+| `make test-unit` | pytest (`tests/unit/`); Vitest + `npm run check` (svelte-check, `tsc` for the SW) in `frontend/` once it exists (T5) — skipped gracefully until then |
 | `make test-installer` | pytest (`tests/installer/`) — fully sandboxed `deploy/update.sh` plan/apply/idempotency tests; safe in any container |
 | `make test-e2e` | Playwright (`tests/e2e/`) on **chromium, firefox and webkit**, with visual snapshots (`tests/e2e/__snapshots__/`). `pwa-push.spec.ts` runs only in the separate `chromium-push` project (real `channel: 'chromium'`), the one engine that can grant the notifications permission headlessly |
 | `make test-load` | k6 (`tests/load/sync_api.js`) vs a real `sync_server` booted with a temp SYNC_DIR by `tests/load/run.sh`; **fails (never skips)** if k6 or the server is unavailable. k6 is pinned + checksum-verified (`tests/load/install-k6.sh`, baked into the test image and installed by CI) |

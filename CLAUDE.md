@@ -102,7 +102,7 @@ see the webkit-flake investigation below for the actual workflow.
 
 | Tier | What | Notes |
 |---|---|---|
-| `test-unit` | pytest (`tests/unit/`) + Vitest (`frontend/`) | |
+| `test-unit` | pytest (`tests/unit/`) + Vitest + `npm run check` (`frontend/`) | |
 | `test-installer` | pytest (`tests/installer/`) | sandboxed `deploy/update.sh` tests |
 | `test-e2e` | Playwright (`tests/e2e/`), chromium+firefox+webkit + visual snapshots | |
 | `test-load` | k6 vs a real `sync_server` | **fails, never skips**, if k6/server unavailable |
@@ -164,13 +164,17 @@ left `vite-plugin-svelte` (peer `vite ^6`) and `vitest` (dependency
 with a real `npm install` + `npm ls` + full `make test`, not just reading
 version ranges.
 
-**`frontend/.npmrc` sets `legacy-peer-deps=true`** (commit `71ce83d`, added
-because `svelte-check` hadn't yet declared a peer range covering TypeScript
-7). That flag makes npm *silently ignore every peer-dependency conflict in
-`frontend/`* — which removes exactly the install-time warning the check
-above relies on. So the `npm ls` dedupe step isn't belt-and-braces here,
-it's the only signal left. If `svelte-check` gains a TS 7 peer range, drop
-the file rather than keeping a repo-wide suppression around.
+**`typescript` is pinned `^6` on purpose.** `svelte-check@4.7.x` peers
+`typescript ^5 || ^6`; TS 7 only works via the experimental `--tsgo`
+setup (TS 6 *and* an `@typescript/native@npm:typescript@7` alias installed
+side by side). The TS 7 bump previously landed behind a `frontend/.npmrc`
+with `legacy-peer-deps=true` (commit `71ce83d`), which silenced the peer
+conflict at install time — and `svelte-check` then crashed on startup in
+its own version guard, so `npm run check` silently stopped running. The
+`.npmrc` is gone; don't re-add it (it hides every peer conflict in
+`frontend/`, including the vite-toolchain ones above). When a Dependabot
+PR proposes TS 7, check `npm view svelte-check@latest peerDependencies`
+first.
 
 ### Known flaky test: `alerts-deeplink.spec.ts` (webkit only)
 

@@ -10,7 +10,7 @@ docker compose run --rm test make test    # containerized, identical to CI
 make test
 ```
 
-`make test` = `test-unit` (pytest + Vitest) + `test-installer` (sandboxed
+`make test` = `test-unit` (pytest + Vitest + `npm run check`) + `test-installer` (sandboxed
 `deploy/update.sh` tests) + `test-e2e` (Playwright: chromium, firefox,
 webkit, visual snapshots) + `test-load` (pinned k6 vs a real sync server;
 fails, never skips) + `test-security` (pip-audit, bandit, npm audit).
