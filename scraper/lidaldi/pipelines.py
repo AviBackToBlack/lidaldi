@@ -8,6 +8,55 @@
 from itemadapter import ItemAdapter
 import json
 
+from PIL import Image
+from scrapy.pipelines.images import ImagesPipeline
+
+
+# Wired per spider via custom_settings, not settings.py: deploy/update.sh
+# never syncs the live settings.py, so this is the only way a pipeline
+# change reaches an existing install. A spider-level ITEM_PIPELINES
+# replaces the project dict wholesale, so ErrorCheckingPipeline is listed
+# here too.
+ITEM_PIPELINES = {
+    "lidaldi.pipelines.FlattenAlphaImagesPipeline": 1,
+    "lidaldi.pipelines.ErrorCheckingPipeline": 300,
+}
+
+
+def _has_alpha(image):
+    return image.mode in ("RGBA", "LA", "PA") or "transparency" in image.info
+
+
+class FlattenAlphaImagesPipeline(ImagesPipeline):
+    """ImagesPipeline that flattens any transparency onto white.
+
+    Stock ImagesPipeline (up to at least Scrapy 2.19) only flattens RGBA
+    when ``image.format`` is PNG/WEBP, but ``get_images()`` hands it the
+    result of ``ImageOps.exif_transpose()`` -- a copy, whose ``format`` is
+    None. RGBA then falls through to a bare ``convert("RGB")`` and fully
+    transparent pixels (0, 0, 0, 0) come out black. LIDL started serving
+    transparent product PNGs in September 2026.
+    """
+
+    # Images stored before the fix live at full/<sha1>.jpg, count as
+    # up to date for IMAGES_EXPIRES days, and are cache-first forever in
+    # the service worker -- a new path is the only way corrected files
+    # reach returning clients. The old ones are reaped by the 90-day
+    # cleanup in run_scrapers.sh.
+    PATH_PREFIX = "full/v2/"
+
+    def file_path(self, request, response=None, info=None, *, item=None):
+        path = super().file_path(request, response=response, info=info, item=item)
+        return self.PATH_PREFIX + path.removeprefix("full/")
+
+    def convert_image(self, image, size=None, *, response_body):
+        if _has_alpha(image):
+            rgba = image.convert("RGBA")
+            flat = Image.new("RGB", rgba.size, (255, 255, 255))
+            flat.paste(rgba, mask=rgba.getchannel("A"))
+            image = flat
+        return super().convert_image(image, size, response_body=response_body)
+
 
 class LidaldiPipeline:
     def process_item(self, item, spider):

@@ -11,6 +11,7 @@
   } from "./lib/logic/filters";
   import { paginate } from "./lib/logic/paging";
   import { computePageSize } from "./lib/logic/pagesize";
+  import { swipeStep, type TouchPoint } from "./lib/logic/swipe";
   import { filters } from "./lib/stores/filters.svelte";
   import { paging } from "./lib/stores/paging.svelte";
   import { sync } from "./lib/stores/sync.svelte";
@@ -149,6 +150,11 @@
     syncUrl("push");
   }
 
+  // Shared guard for keyboard and swipe paging.
+  function canPage(): boolean {
+    return !(alertsModalOpen || view === "alerts" || loading || loadError);
+  }
+
   // Global Left/Right arrow paging (Bug #3). Suppressed only where the
   // arrows have native meaning: selects and text carets. Buttons don't
   // suppress — filter controls blur after activation, and paging keeps
@@ -161,7 +167,7 @@
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     // Never swallow modified arrows (screen-reader / browser shortcuts).
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    if (alertsModalOpen || view === "alerts" || loading || loadError) return;
+    if (!canPage()) return;
     const ae = document.activeElement;
     if (ae instanceof HTMLSelectElement || ae instanceof HTMLTextAreaElement) return;
     if (ae instanceof HTMLInputElement && ae.type !== "checkbox" && ae.type !== "radio") return;
@@ -172,9 +178,51 @@
       goToPage(pageResult.page + 1);
     }
   }
+
+  // Touch-swipe paging on the grid (thresholds in logic/swipe.ts).
+  // Listeners sit on the grid, not window, so horizontally scrollable
+  // controls elsewhere keep their own gestures. Touch rather than pointer
+  // events: the browser's own vertical pan fires pointercancel mid-gesture.
+  let swipeStart: TouchPoint | null = null;
+  let gridMetaEl = $state<HTMLElement | null>(null);
+
+  function onTouchStart(e: TouchEvent): void {
+    swipeStart = null;
+    // Multi-touch is a pinch; on a zoomed page a horizontal drag pans it.
+    if (e.touches.length !== 1 || (window.visualViewport?.scale ?? 1) > 1) return;
+    const t = e.touches[0];
+    if (t) swipeStart = { x: t.clientX, y: t.clientY, t: e.timeStamp };
+  }
+
+  // A second finger landing anywhere — not only on the grid, whose own
+  // touchstart never sees it — makes the gesture a pinch, not a swipe.
+  function onWindowTouchStart(e: TouchEvent): void {
+    if (e.touches.length > 1) swipeStart = null;
+  }
+
+  function onTouchEnd(e: TouchEvent): void {
+    const start = swipeStart;
+    swipeStart = null;
+    if (!start || e.touches.length !== 0 || !canPage()) return;
+    // A pinch that zoomed mid-gesture must not page either.
+    if ((window.visualViewport?.scale ?? 1) > 1) return;
+    // touches is empty on touchend; the lifted finger is in changedTouches.
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const end = { x: t.clientX, y: t.clientY, t: e.timeStamp };
+    const target = pageResult.page + swipeStep(start, end, window.innerWidth);
+    if (target === pageResult.page || target < 1 || target > pageResult.totalPages) {
+      return;
+    }
+    goToPage(target);
+    // A swipe can land anywhere mid-grid; start the new page at its top.
+    if (gridMetaEl && gridMetaEl.getBoundingClientRect().top < 0) {
+      gridMetaEl.scrollIntoView({ block: "start" });
+    }
+  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} ontouchstart={onWindowTouchStart} />
 
 <Header
   lastUpdated={meta?.lastUpdated ?? 0}
@@ -206,7 +254,7 @@
     onOpenAlerts={() => (alertsModalOpen = true)}
   />
 
-  <div class="grid-meta" aria-live="polite">
+  <div class="grid-meta" aria-live="polite" bind:this={gridMetaEl}>
     <span
       >Showing <b>{filtered.length}</b> offers{#if newAvailable}<span class="sr-only"
           >, including new offers since your last visit</span
@@ -216,7 +264,15 @@
   </div>
 
   {#if pageResult.items.length}
-    <div class="products-grid">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- Swipe is a touch shortcut only; the Pager and global arrow keys
+         are the accessible paging controls. -->
+    <div
+      class="products-grid"
+      ontouchstart={onTouchStart}
+      ontouchend={onTouchEnd}
+      ontouchcancel={() => (swipeStart = null)}
+    >
       {#each pageResult.items as item (item.id)}
         <Card offer={item} isNew={isNew(item, sync.lastVisit)} />
       {/each}
