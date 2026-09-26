@@ -1,3 +1,6 @@
 pytest==9.1.1
 pip-audit==2.10.1
 bandit==1.9.4
+beautifulsoup4==4.15.0
+pillow==12.3.0
+Scrapy==2.19.0

@@ -6,9 +6,11 @@ import time
 from bs4 import BeautifulSoup
 from scrapy import signals
 from urllib.parse import urlparse, urlunparse
+from lidaldi.pipelines import ITEM_PIPELINES
 
 class LidlSpider(scrapy.Spider):
     name = "lidl"
+    custom_settings = {"ITEM_PIPELINES": ITEM_PIPELINES}
     allowed_domains = ["lidl.ie", "imgproxy-retcat.assets.schwarz"]
     search_api_url = "https://www.lidl.ie/q/api/search?assortment=IE&locale=en_IE&version=2.1.0"
     search_api_fetchsize = 108

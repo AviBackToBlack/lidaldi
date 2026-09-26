@@ -113,8 +113,11 @@ DOWNLOAD_DELAY = _cfg.DOWNLOAD_DELAY
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
+# NOTE: both spiders override this via custom_settings with
+# lidaldi.pipelines.ITEM_PIPELINES (the live settings.py is never synced by
+# deploy/update.sh). Kept only as documentation of the same wiring.
 ITEM_PIPELINES = {
-    "scrapy.pipelines.images.ImagesPipeline": 1,
+    "lidaldi.pipelines.FlattenAlphaImagesPipeline": 1,
     'lidaldi.pipelines.ErrorCheckingPipeline': 300,
 }
 

@@ -6,9 +6,11 @@ import time
 from bs4 import BeautifulSoup
 from scrapy import signals
 from urllib.parse import urlparse, urlunparse
+from lidaldi.pipelines import ITEM_PIPELINES
 
 class AldiSpider(scrapy.Spider):
     name = "aldi"
+    custom_settings = {"ITEM_PIPELINES": ITEM_PIPELINES}
     allowed_domains = ["aldi.ie", "api.aldi.ie", "dm.emea.cms.aldi.cx"]
     start_urls = ["https://www.aldi.ie/products/specialbuys"]
     product_detail_api = "https://api.aldi.ie/v2/products/{sku}?serviceType=walk-in"
