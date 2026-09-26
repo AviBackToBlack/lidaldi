@@ -37,7 +37,7 @@ test-unit: $(PYENV_STAMP)
 	@if [ -d frontend ]; then \
 		cd frontend && npm ci && npx vitest run && npm run check; \
 	else \
-		echo "test-unit: frontend/ not present yet — skipping Vitest"; \
+		echo "test-unit: frontend/ not present yet — skipping Vitest + type check"; \
 	fi
 
 test-installer: $(PYENV_STAMP)
