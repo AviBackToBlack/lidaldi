@@ -194,10 +194,18 @@
     if (t) swipeStart = { x: t.clientX, y: t.clientY, t: e.timeStamp };
   }
 
+  // A second finger landing anywhere — not only on the grid, whose own
+  // touchstart never sees it — makes the gesture a pinch, not a swipe.
+  function onWindowTouchStart(e: TouchEvent): void {
+    if (e.touches.length > 1) swipeStart = null;
+  }
+
   function onTouchEnd(e: TouchEvent): void {
     const start = swipeStart;
     swipeStart = null;
     if (!start || e.touches.length !== 0 || !canPage()) return;
+    // A pinch that zoomed mid-gesture must not page either.
+    if ((window.visualViewport?.scale ?? 1) > 1) return;
     // touches is empty on touchend; the lifted finger is in changedTouches.
     const t = e.changedTouches[0];
     if (!t) return;
@@ -214,7 +222,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} ontouchstart={onWindowTouchStart} />
 
 <Header
   lastUpdated={meta?.lastUpdated ?? 0}

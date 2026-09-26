@@ -37,7 +37,9 @@ describe("swipeStep (touch paging)", () => {
 
   it("ignores slow drags", () => {
     expect(swipeStep(start, to(-150, 0, SWIPE_MAX_DURATION_MS + 1), W)).toBe(0);
-    expect(swipeStep(start, to(-150, 0, SWIPE_MAX_DURATION_MS), W)).toBe(1);
+    // exclusive bound: a swipe must take strictly less than the maximum
+    expect(swipeStep(start, to(-150, 0, SWIPE_MAX_DURATION_MS), W)).toBe(0);
+    expect(swipeStep(start, to(-150, 0, SWIPE_MAX_DURATION_MS - 1), W)).toBe(1);
   });
 
   it("leaves edge swipes to the OS back/forward gesture", () => {

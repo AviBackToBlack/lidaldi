@@ -16,7 +16,8 @@ export const SWIPE_MIN_DISTANCE = 50;
 /** Horizontal travel must exceed vertical travel by this factor, so
  *  slightly diagonal vertical scrolls never page. */
 export const SWIPE_AXIS_RATIO = 1.5;
-/** Slower drags are treated as reading/panning, not a flick. */
+/** Gestures lasting this long or longer are treated as reading/panning,
+ *  not a flick (exclusive bound: a swipe must take < this). */
 export const SWIPE_MAX_DURATION_MS = 700;
 /** Gestures starting this close to a screen edge belong to the OS
  *  (iOS Safari / Android gesture-nav back & forward). */
@@ -34,7 +35,7 @@ export function swipeStep(
   if (start.x < SWIPE_EDGE_GUARD || start.x > viewportWidth - SWIPE_EDGE_GUARD) {
     return 0;
   }
-  if (end.t - start.t > SWIPE_MAX_DURATION_MS) return 0;
+  if (end.t - start.t >= SWIPE_MAX_DURATION_MS) return 0;
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   if (Math.abs(dx) < SWIPE_MIN_DISTANCE) return 0;

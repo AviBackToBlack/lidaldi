@@ -79,6 +79,32 @@ test('edge swipes are left to the OS back/forward gesture', async ({ page }) => 
   await expect(pageIndicator(page)).toHaveText(/^page 1 of/);
 });
 
+test('a second finger outside the grid cancels the swipe (pinch)', async ({ page }) => {
+  // Finger A starts on a card; finger B lands and lifts over the filter bar
+  // (the grid never sees B's touchstart); A then lifts after a long
+  // horizontal move. Must not page.
+  const card = page.locator('.product-card').first();
+  const bar = page.getByRole('searchbox', { name: 'Search products' });
+  await card.evaluate((card, bar) => {
+    const fire = (el: Element, type: string, touches: object[], changed: object[]) => {
+      const ev = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(ev, {
+        touches: { value: touches },
+        changedTouches: { value: changed },
+      });
+      el.dispatchEvent(ev);
+    };
+    const y = Math.max(0, card.getBoundingClientRect().top) + 20;
+    const a = { identifier: 1, clientX: 200, clientY: y };
+    const b = { identifier: 2, clientX: 100, clientY: 40 };
+    fire(card, 'touchstart', [a], [a]);
+    fire(bar!, 'touchstart', [a, b], [b]);
+    fire(bar!, 'touchend', [a], [b]);
+    fire(card, 'touchend', [], [{ identifier: 1, clientX: 50, clientY: y }]);
+  }, await bar.elementHandle());
+  await expect(pageIndicator(page)).toHaveText(/^page 1 of/);
+});
+
 test('a swipe from mid-grid starts the new page at its top', async ({ page }) => {
   await page.locator('.pagination').scrollIntoViewIfNeeded();
   await expect(page.locator('.grid-meta')).not.toBeInViewport();
