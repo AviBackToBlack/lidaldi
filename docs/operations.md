@@ -36,7 +36,10 @@ sudo ./deploy/update.sh               # apply
 - The real `install.local.conf` is git-ignored — paths differ per
   environment and never belong in the repo.
 - The pyenv virtualenv (`lidaldi` by default) is created/reused and re-pipped
-  only when the `requirements.txt` hash changes.
+  only when the `requirements.txt` hash changes. `requirements.txt` pins
+  exact (`==`) versions and the test suite installs that same file, so a
+  deploy only ever installs direct dependencies CI has tested (transitive
+  dependencies are not locked).
 - The web-root sync deploys `frontend/dist` verbatim but **never touches
   `offers.json` / `meta.json`** — those are data written by
   `process_offers.py` (D2: app deploy ≠ data write). `frontend/dist` is a

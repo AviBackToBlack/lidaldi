@@ -16,12 +16,14 @@ PYENV_STAMP := $(PYENV_ROOT)/versions/$(PYENV_VIRTUALENV_NAME)/.tests-requiremen
 
 setup: $(PYENV_STAMP) tests/e2e/node_modules/.ok
 
-$(PYENV_STAMP): tests/requirements.txt
+# App deps come from requirements.txt itself (not a copy in tests/), so CI
+# tests exactly the versions deploy/update.sh installs in production.
+$(PYENV_STAMP): requirements.txt tests/requirements.txt
 	$(PYENV_BIN) versions --bare | grep -Fx $(PYENV_PYTHON_VERSION)
 	$(PYENV_BIN) versions --bare | grep -Fx $(PYENV_VIRTUALENV_NAME)
 	$(PYTHON) -c 'import sys; assert sys.version_info[:3] == tuple(map(int, "$(PYENV_PYTHON_VERSION)".split("."))), "pyenv virtualenv must use Python $(PYENV_PYTHON_VERSION): got %s" % sys.version'
 	$(PIP) install --quiet --upgrade pip
-	$(PIP) install --quiet -r tests/requirements.txt
+	$(PIP) install --quiet -r requirements.txt -r tests/requirements.txt
 	touch $@
 
 tests/e2e/node_modules/.ok: tests/e2e/package.json tests/e2e/package-lock.json

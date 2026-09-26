@@ -31,7 +31,9 @@ make test
 - `.devcontainer/devcontainer.json` + `docker-compose.yml` use the pinned
   official Playwright image `mcr.microsoft.com/playwright:v1.63.0-noble`
   plus pyenv Python `3.12.13` and a `lidaldi` pyenv virtualenv.
-- First run: `make setup` installs `tests/requirements.txt` into the pyenv
+- First run: `make setup` installs `requirements.txt` (the app's exact prod
+  pins, so tests run against what deploy installs) plus `tests/requirements.txt`
+  (test tooling) into the pyenv
   `lidaldi` environment and installs `tests/e2e/` npm deps. `make test` does
   this automatically.
 - Visual snapshots are per-engine. To (re)generate after intentional UI changes:
