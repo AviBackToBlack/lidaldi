@@ -444,3 +444,37 @@ def test_permission_pass_tolerates_files_vanishing_mid_run(perms_sandbox, tmp_pa
     assert "set web root permissions to fix" in proc.stdout
     assert not (web / "offers.json.tmp").exists()
     assert owner(web / "offers.json") == (CRON_USER, WEB_GROUP, 0o640)
+
+
+@needs_root
+def test_symlinked_web_root_is_still_enforced(perms_sandbox, tmp_path):
+    # find(1) never descends a symlinked start point: without canonicalising
+    # WEB_ROOT the permission step would check nothing and report OK while
+    # index.html kept a wrong owner (the 403 outage, reported green).
+    real = tmp_path / "real-web"
+    real.mkdir()
+    link = perms_sandbox["WEB_ROOT"]
+    link.parent.mkdir(parents=True)
+    link.symlink_to(real)
+
+    run_update(perms_sandbox)
+    assert link.is_symlink()
+    assert owner(real) == (CRON_USER, WEB_GROUP, 0o750)
+    assert owner(real / "index.html") == ("root", WEB_GROUP, 0o640)
+    assert owner(real / "img" / "full") == (CRON_USER, WEB_GROUP, 0o750)
+    assert as_user(NGINX_USER, "test", "-r", link / "index.html")
+
+    (real / "index.html").chmod(0o600)  # drift inside the symlinked tree
+    proc = run_update(perms_sandbox)
+    assert "set web root permissions to fix 1 path(s)" in proc.stdout
+    assert owner(real / "index.html") == ("root", WEB_GROUP, 0o640)
+    assert "NOOP" in run_update(perms_sandbox).stdout
+
+
+@needs_root
+def test_missing_service_user_without_user_management_is_rejected(sandbox):
+    append_conf(sandbox, SERVICE_USER="no-such-user-xyz")  # MANAGE_USER=0
+    proc = run_update(sandbox, check=False)
+    assert proc.returncode != 0
+    assert "user no-such-user-xyz does not exist and MANAGE_USER=0" in proc.stderr
+    assert not sandbox["root"].exists()

@@ -133,6 +133,11 @@ for p in "$WEB_ROOT" "$IMAGES_DIR"; do
         */../*|*/./*) die "path must not contain . or .. components: $p" ;;
     esac
 done
+# Canonical form (symlinks resolved, // collapsed): find(1) never descends a
+# symlinked start point, so a symlinked WEB_ROOT would otherwise make the
+# permission step check nothing and report OK.
+WEB_ROOT="$(realpath -m -- "$WEB_ROOT")"
+IMAGES_DIR="$(realpath -m -- "$IMAGES_DIR")"
 case "$IMAGES_DIR" in
     "$WEB_ROOT"/?*) ;;
     *) die "IMAGES_DIR ($IMAGES_DIR) must be inside WEB_ROOT ($WEB_ROOT) — nginx serves the images from there" ;;
@@ -298,6 +303,10 @@ if [ "$MANAGE_USER" = "1" ]; then
     fi
 else
     ok "user management disabled (MANAGE_USER=0)"
+    # Nothing will create it, and every ownership check needs it to exist.
+    if [ "$IS_ROOT" = "1" ] && ! getent passwd "$SERVICE_USER" >/dev/null 2>&1; then
+        die "user $SERVICE_USER does not exist and MANAGE_USER=0 — create it (in group $WEB_GROUP) or set MANAGE_USER=1"
+    fi
     if [ "$IS_ROOT" = "1" ] && getent passwd "$SERVICE_USER" >/dev/null 2>&1 && \
             ! in_group "$SERVICE_USER" "$WEB_GROUP"; then
         say WARN "user $SERVICE_USER is not in group $WEB_GROUP — $GROUP_HINT; run: usermod -aG $WEB_GROUP $SERVICE_USER"
