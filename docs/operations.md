@@ -57,7 +57,10 @@ sudo ./deploy/update.sh               # apply
 - **Web root permissions** are enforced on every run (drift is shown as
   `DIFF` and fixed; nothing to fix = no action):
   - everything `root:$WEB_GROUP` (default `www-data`), directories `0750`,
-    files `0640` — nginx reads, only root changes;
+    files `0640` — nginx reads, only root can modify the app files (caveat:
+    owning the web root directory lets `SERVICE_USER` rename/replace its
+    *top-level* entries, though not edit them or anything in root-owned
+    subdirectories);
   - `SERVICE_USER` owns what the cron job writes: the web root directory
     itself (offers.json/meta.json are written via `.tmp` + rename there),
     `offers.json`/`meta.json`, and the whole `IMAGES_DIR` tree (default

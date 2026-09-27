@@ -41,7 +41,7 @@ done
 
 # shellcheck source=deploy/ui.sh
 . "$SCRIPT_DIR/ui.sh"
-ui_init "$PLAIN" 9
+ui_init "$PLAIN" "$(grep -c '^ui_section "' "${BASH_SOURCE[0]}")"
 die() { say ERROR "$*" >&2; exit 1; }
 trap ui_interrupt INT TERM
 
@@ -371,7 +371,12 @@ if [ -f "$FRONTEND_SRC/package.json" ]; then
         else
             why="frontend/dist missing"
         fi
-        command -v "$NPM_BIN" >/dev/null 2>&1 || die "frontend needs a build ($why) but '$NPM_BIN' was not found — install Node.js/npm or set NPM_BIN in install.local.conf; refusing to deploy a stale frontend"
+        if ! command -v "$NPM_BIN" >/dev/null 2>&1; then
+            NPM_MISSING="frontend needs a build ($why) but '$NPM_BIN' was not found — install Node.js/npm or set NPM_BIN in install.local.conf; refusing to deploy a stale frontend"
+            # A dry run still previews the whole plan; a real run stops here.
+            [ "$DRY_RUN" = "1" ] || die "$NPM_MISSING"
+            say WARN "$NPM_MISSING (a real run would abort here)"
+        fi
         say DIFF "frontend: $why"
         plan "build frontend (npm ci && npm run build)" build_frontend
         FRONTEND_BUILD_PLANNED=1
@@ -411,13 +416,17 @@ else
 fi
 
 # Web root permissions. Baseline: everything root:$WEB_GROUP, dirs 0750,
-# files 0640 — nginx (in $WEB_GROUP) can read, only root can change. The
-# cron job ($SERVICE_USER) owns exactly what it writes: the web root
+# files 0640 — nginx (in $WEB_GROUP) can read, only root can modify the
+# app files. The cron job ($SERVICE_USER) owns exactly what it writes: the web root
 # directory itself (process_offers.py creates offers.json/meta.json there
 # via a .tmp file + rename), those data files, and the whole IMAGES_DIR
 # tree (the scraper adds images and overwrites them once they expire).
 # Symlinks are never followed or changed: $SERVICE_USER can create them in
 # the directories it owns.
+# Caveat: owning the web root directory also lets $SERVICE_USER rename or
+# replace its *top-level* entries (index.html, sw.js, assets/) — it cannot
+# edit them or anything inside root-owned subdirectories. Closing that would
+# need a root-owned sticky web root plus an ACL for $SERVICE_USER.
 WEB_DATA_FILES=(offers.json meta.json offers.json.tmp meta.json.tmp)
 
 webroot_root_zone() { # webroot_root_zone <find-action...>: entries root owns
@@ -454,14 +463,20 @@ webroot_perm_drift() { # one line per entry that breaks the policy (may repeat)
 }
 
 webroot_fix_perms() {
-    local -a svc
+    local -a svc left
+    local rc=0
     mapfile -d '' -t svc < <(webroot_service_paths)
-    # Owners first, then modes.
-    webroot_root_zone -exec chown -h "root:$WEB_GROUP" {} +
-    chown -h "$SERVICE_USER:$WEB_GROUP" "${svc[@]}"
-    webroot_images_tree -exec chown -h "$SERVICE_USER:$WEB_GROUP" {} +
-    find "$WEB_ROOT" -type d -exec chmod 0750 {} +
-    find "$WEB_ROOT" -type f -exec chmod 0640 {} +
+    # Owners first, then modes. The cron job may replace or reap files while
+    # this runs (offers.json.tmp, expired images), so a vanished path is not
+    # fatal: on any error, re-check and fail only if real drift remains.
+    webroot_root_zone -exec chown -h "root:$WEB_GROUP" {} + 2>/dev/null || rc=1
+    chown -h "$SERVICE_USER:$WEB_GROUP" "${svc[@]}" 2>/dev/null || rc=1
+    webroot_images_tree -exec chown -h "$SERVICE_USER:$WEB_GROUP" {} + 2>/dev/null || rc=1
+    find "$WEB_ROOT" -type d -exec chmod 0750 {} + 2>/dev/null || rc=1
+    find "$WEB_ROOT" -type f -exec chmod 0640 {} + 2>/dev/null || rc=1
+    [ "$rc" = "0" ] && return 0
+    mapfile -t left < <(webroot_perm_drift 2>/dev/null | LC_ALL=C sort -u)
+    [ "${#left[@]}" = "0" ] || die "web root permissions could not be applied to ${#left[@]} path(s), e.g. ${left[0]}"
 }
 
 if [ "$IS_ROOT" != "1" ]; then
@@ -583,6 +598,34 @@ step_config() { # step_config <mode> <sample> <live> <mode-bits>
 }
 step_config toml "$REPO_DIR/config.toml.sample" "$LIVE_TOML" 0640
 step_config env  "$REPO_DIR/.env.sample"        "$LIVE_ENV"  0600
+
+# The pipeline writes where the live config.toml says, not where this file
+# says. If WEB_ROOT/IMAGES_DIR don't cover those paths, the permission step
+# and the image cleanup act on a tree nothing writes to. WARN, not die: a
+# legacy live scraper settings.py can override images_store.
+if [ -f "$LIVE_TOML" ]; then
+    CFG_PATHS=()
+    mapfile -t CFG_PATHS < <(python_base -c '
+import sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    d = tomllib.load(f)
+print(str(d.get("paths", {}).get("website_root_dir", "")).rstrip("/"))
+print(str(d.get("scraper", {}).get("images_store", "")).rstrip("/"))
+' "$LIVE_TOML" 2>/dev/null) || true
+    CFG_WEB="${CFG_PATHS[0]:-}"
+    CFG_IMAGES="${CFG_PATHS[1]:-}"
+    case "$CFG_WEB" in ""|/path/to/*) CFG_WEB="" ;; esac
+    case "$CFG_IMAGES" in ""|/path/to/*) CFG_IMAGES="" ;; esac
+    if [ -n "$CFG_WEB" ] && [ "$CFG_WEB" != "$WEB_ROOT" ]; then
+        say WARN "config.toml [paths] website_root_dir ($CFG_WEB) != WEB_ROOT ($WEB_ROOT): process_offers.py writes offers.json/meta.json there, outside the web root this installer manages"
+    fi
+    if [ -n "$CFG_IMAGES" ]; then
+        case "$CFG_IMAGES/full" in
+            "$IMAGES_DIR"|"$IMAGES_DIR"/*) ;;
+            *) say WARN "config.toml [scraper] images_store ($CFG_IMAGES) puts images in $CFG_IMAGES/full, outside IMAGES_DIR ($IMAGES_DIR): the permission step and the 90-day cleanup would miss them — set IMAGES_DIR in install.local.conf" ;;
+        esac
+    fi
+fi
 
 # 9. VAPID keypair: reused verbatim — never generated, moved or rewritten.
 ui_section "VAPID key"

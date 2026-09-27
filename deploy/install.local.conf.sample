@@ -18,10 +18,12 @@ WEB_ROOT="/var/www/lidaldi"
 # WEB_GROUP (added automatically when MANAGE_USER=1).
 #WEB_GROUP="www-data"
 
-# Directory tree the scraper writes product images into — Scrapy's
-# IMAGES_STORE, or its full/ subdir (check the live scraper settings.py:
-# the cron user must own every image file). Must be inside WEB_ROOT (nginx
-# serves it). Also the directory the daily 90-day image cleanup prunes.
+# Directory tree the scraper writes product images into: Scrapy stores them
+# under <IMAGES_STORE>/full, which must be IMAGES_DIR or inside it (the
+# installer warns if config.toml's [scraper] images_store says otherwise;
+# a legacy live scraper settings.py may override it — check that too). Must
+# be inside WEB_ROOT (nginx serves it). Also what the daily 90-day image
+# cleanup prunes.
 #IMAGES_DIR="/var/www/lidaldi/img/full"
 
 # npm used to rebuild frontend/dist when the frontend sources changed.

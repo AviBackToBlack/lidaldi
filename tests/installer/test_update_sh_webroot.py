@@ -382,3 +382,65 @@ def test_interrupting_a_fancy_build_stops_the_whole_build(build_sandbox, tmp_pat
     while _alive(grandchild) and time.time() < deadline:
         time.sleep(0.1)
     assert not _alive(grandchild), "build child outlived the installer"
+
+
+# --- config.toml cross-check ------------------------------------------------
+
+def _set_live_paths(sandbox, website_root_dir, images_store):
+    toml = sandbox["APP_ROOT"] / "config.toml"
+    text = toml.read_text()
+    text = text.replace('"/path/to/website/root/folder"', f'"{website_root_dir}"')
+    text = text.replace('"/path/to/images/folder"', f'"{images_store}"')
+    toml.write_text(text)
+
+
+def test_config_paths_outside_managed_tree_warn(sandbox, tmp_path):
+    run_update(sandbox)
+    _set_live_paths(sandbox, tmp_path / "other-web", tmp_path / "other-img")
+    proc = run_update(sandbox, "--dry-run")
+    assert "WARN  config.toml [paths] website_root_dir" in proc.stdout
+    assert "WARN  config.toml [scraper] images_store" in proc.stdout
+
+
+@pytest.mark.parametrize("store", ["img", "img/full"])
+def test_config_paths_covered_by_images_dir_are_quiet(sandbox, store):
+    # images_store=<web>/img -> images in img/full (== IMAGES_DIR);
+    # images_store=<web>/img/full -> img/full/full (inside it). Both fine.
+    run_update(sandbox)
+    web = sandbox["WEB_ROOT"]
+    _set_live_paths(sandbox, web, web / store)
+    proc = run_update(sandbox)
+    assert "WARN  config.toml" not in proc.stdout
+    assert "NOOP" in proc.stdout
+
+
+# --- robustness ---------------------------------------------------------------
+
+def test_dry_run_without_npm_still_previews_the_plan(build_sandbox):
+    append_conf(build_sandbox, NPM_BIN="/nonexistent/npm")
+    proc = run_update(build_sandbox, "--dry-run")
+    assert "a real run would abort here" in proc.stdout
+    assert "PLAN  build frontend" in proc.stdout
+    assert not build_sandbox["root"].exists()
+
+
+@needs_root
+def test_permission_pass_tolerates_files_vanishing_mid_run(perms_sandbox, tmp_path):
+    # The cron job can replace offers.json.tmp or reap an image while the
+    # pass runs; chown then fails with ENOENT. That must not abort a deploy.
+    run_update(perms_sandbox)
+    web = perms_sandbox["WEB_ROOT"]
+    (web / "offers.json").write_text("[]")
+    (web / "offers.json.tmp").write_text("[]")
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    (shim / "chown").write_text(
+        "#!/bin/bash\n"
+        'for a in "$@"; do case "$a" in */offers.json.tmp) rm -f "$a" ;; esac; done\n'
+        f'exec {shutil.which("chown")} "$@"\n')
+    (shim / "chown").chmod(0o755)
+
+    proc = run_update(perms_sandbox, env={"PATH": f"{shim}:{os.environ['PATH']}"})
+    assert "set web root permissions to fix" in proc.stdout
+    assert not (web / "offers.json.tmp").exists()
+    assert owner(web / "offers.json") == (CRON_USER, WEB_GROUP, 0o640)
