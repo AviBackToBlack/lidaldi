@@ -8,9 +8,22 @@
 APP_ROOT="/opt/lidaldi"
 
 # Web root served by nginx (frontend/dist build output; offers.json and
-# meta.json are written here by process_offers.py and are never touched by
-# the installer).
+# meta.json are written here by process_offers.py — the installer never
+# rewrites their content, it only sets their owner/mode).
 WEB_ROOT="/var/www/lidaldi"
+
+# Group nginx runs as. Web root policy (enforced on every run): everything
+# root:WEB_GROUP, dirs 0750, files 0640; SERVICE_USER owns the web root dir,
+# offers.json/meta.json and the IMAGES_DIR tree, and must be a member of
+# WEB_GROUP (added automatically when MANAGE_USER=1).
+#WEB_GROUP="www-data"
+
+# Where the scraper stores product images (must be inside WEB_ROOT; nginx
+# serves it). Also the directory the daily 90-day image cleanup prunes.
+#IMAGES_DIR="/var/www/lidaldi/img/full"
+
+# npm used to rebuild frontend/dist when the frontend sources changed.
+#NPM_BIN="npm"
 
 # System user the cron job and sync service run as (created if missing).
 SERVICE_USER="lidaldi"

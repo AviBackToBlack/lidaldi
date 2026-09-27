@@ -184,7 +184,9 @@ sudo ./deploy/update.sh              # backs up live configs + SYNC_DIR, then ap
 
 The installer verifies pyenv and the pinned Python `3.12.x` base, then
 creates/reuses the `lidaldi` pyenv virtualenv; it never generates, moves or rewrites the VAPID
-keypair, and never touches `offers.json`/`meta.json` in the web root. Full operator procedures
+keypair, and never rewrites the content of `offers.json`/`meta.json` in the web root. It
+rebuilds `frontend/dist` when the frontend sources changed and enforces the web root
+permissions (`root:www-data` 0750/0640; the cron user owns only what it writes). Full operator procedures
 (backups, VAPID handling, service-worker cache-name bumps, ZAP scans) are in
 [docs/operations.md](docs/operations.md).
 
