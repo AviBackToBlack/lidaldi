@@ -8,6 +8,7 @@ the real checkout with a fake frontend/dist. Nothing outside tmp_path is
 ever touched, so the suite is safe in any Ubuntu container.
 """
 
+import grp
 import hashlib
 import os
 import shutil
@@ -94,6 +95,9 @@ def sandbox(tmp_path):
     conf = tmp_path / "install.local.conf"
     lines = [f'{k}="{v}"' for k, v in paths.items()]
     lines += [f'SERVICE_USER="{os.environ.get("USER", "root")}"',
+              # The caller's own group always exists; permission tests
+              # override it with a real nginx-style group.
+              f'WEB_GROUP="{grp.getgrgid(os.getgid()).gr_name}"',
               "MANAGE_USER=0",
               f'REPO_DIR="{repo}"',
               f'PYENV_ROOT="{pyenv_root}"',

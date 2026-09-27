@@ -9,8 +9,9 @@ production. Companion docs: [observability.md](observability.md)
 
 One script handles both fresh installs and updates. It is **idempotent and
 plan-then-apply**: every step (service user, directories, code sync,
-`frontend/dist` → web root, rendered cron/logrotate/systemd/nginx files,
-pyenv virtualenv + deps, config merge) checks the current state and only
+frontend build, `frontend/dist` → web root, web root permissions, rendered
+cron/logrotate/systemd/nginx files, pyenv virtualenv + deps, config merge)
+checks the current state and only
 registers an action on drift. A second run on an already-installed system is a strict
 no-op (`NOOP`, no backup, no mutation).
 
@@ -28,6 +29,7 @@ sudo ./deploy/update.sh               # apply
   `lidaldi-sync` (which otherwise happens only when the rendered unit
   changed, running as root, with systemd present).
 - `--config /path/to/install.local.conf` uses an alternate local config.
+- `--plain` forces plain output on a terminal (see *Output* below).
 - Preflight: aborts unless pyenv and pyenv-virtualenv are available, pyenv
   has the pinned Python `3.12.x` base installed (`3.12.13` by default), and
   that interpreter is ≥ 3.12 (decision D3). Override with `PYENV_ROOT`,
@@ -40,12 +42,52 @@ sudo ./deploy/update.sh               # apply
   exact (`==`) versions and the test suite installs that same file, so a
   deploy only ever installs direct dependencies CI has tested (transitive
   dependencies are not locked).
-- The web-root sync deploys `frontend/dist` verbatim but **never touches
-  `offers.json` / `meta.json`** — those are data written by
-  `process_offers.py` (D2: app deploy ≠ data write). `frontend/dist` is a
-  build artifact: build it in CI or locally (`cd frontend && npm ci && npm
-  run build`) before running the installer; if it is missing the installer
-  warns and skips the web-root sync rather than running npm on the server.
+- **Frontend build.** `frontend/dist` is a git-ignored build artifact, so a
+  `git pull` never updates it. The installer fingerprints the frontend
+  sources and, when they differ from what the current `dist/` was built
+  from, runs `npm ci && npm run build` itself before the web-root sync (the
+  fingerprint is stamped into `dist/.build-fingerprint` only after a
+  successful build, so a failed build is retried and the live site is left
+  as it was). If a build is needed and `npm` is missing (`NPM_BIN`), the
+  installer aborts before changing anything rather than deploy a stale
+  frontend.
+- The web-root sync deploys `frontend/dist` but **never rewrites the
+  content of `offers.json` / `meta.json`** — those are data written by
+  `process_offers.py` (D2: app deploy ≠ data write).
+- **Web root permissions** are enforced on every run (drift is shown as
+  `DIFF` and fixed; nothing to fix = no action). `WEB_ROOT` must therefore
+  be a directory **dedicated to this site** — the installer refuses `/`,
+  standard system/shared directories (`/var/www`, `/opt`, …) and any
+  directory containing `APP_ROOT`, `SYNC_DIR`, `LOG_DIR`, `BACKUP_DIR`,
+  `PYENV_ROOT` or the checkout. Symlinks inside it are reported as `WARN`
+  (never followed or changed):
+  - everything `root:$WEB_GROUP` (default `www-data`), directories `0750`,
+    files `0640` — nginx reads, only root can modify the app files (caveat:
+    owning the web root directory lets `SERVICE_USER` rename/replace its
+    *top-level* entries, though not edit them or anything in root-owned
+    subdirectories);
+  - `SERVICE_USER` owns what the cron job writes: the web root directory
+    itself (offers.json/meta.json are written via `.tmp` + rename there),
+    `offers.json`/`meta.json`, and the whole `IMAGES_DIR` tree (default
+    `$WEB_ROOT/img/full`; the scraper adds images and overwrites expired
+    ones);
+  - `SERVICE_USER` must be in `WEB_GROUP` to reach `IMAGES_DIR` through the
+    `root:$WEB_GROUP 0750` parents — added automatically with
+    `MANAGE_USER=1`, a `WARN` otherwise;
+  - symlinks are never followed or changed (the cron user can create them
+    in the directories it owns).
+
+  This replaces the old hand-run `fix_perms_lidaldi.sh`. Right after a
+  scrape, expect a permissions fix in the plan: new files the cron job
+  created (umask `0002`, group `$SERVICE_USER`) are normalised to the policy.
+- `IMAGES_DIR` is also what the daily 90-day image cleanup in
+  `run_scrapers.sh` prunes. (It used to be rendered to a non-existent
+  `$APP_ROOT/data/images`, so no image was ever deleted; the first cron run
+  after that fix deletes every image older than 90 days.)
+- **Output.** On an interactive UTF-8 terminal the installer shows colours,
+  sections, a progress gauge and spinners (build/pip output goes to a log
+  shown only on failure). Anywhere else — pipes, logs, cron, CI, `NO_COLOR`
+  set, or `--plain` — it prints the plain `TOKEN  message` lines.
 
 Expected production pyenv layout:
 

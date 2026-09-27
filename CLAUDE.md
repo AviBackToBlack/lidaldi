@@ -244,12 +244,34 @@ documented for `pwa-push.spec.ts` (`chromium-push` project) in
 `deploy/update.sh` is the one idempotent installer/updater — plan-then-apply,
 strict no-op on a second run with no drift. **Never** hand-edit production
 config or services directly; go through the installer (dry-run first,
-always). It never touches `offers.json`/`meta.json` (data, written by the
-pipeline) and never touches the VAPID keypair (a long-lived credential —
-losing/regenerating it kills push for every subscriber). Full procedure:
-`docs/operations.md`.
+always). It never rewrites the content of `offers.json`/`meta.json` (data,
+written by the pipeline — it only sets their owner/mode) and never touches
+the VAPID keypair (a long-lived credential — losing/regenerating it kills
+push for every subscriber). It rebuilds `frontend/dist` itself when the
+frontend sources changed, and enforces the web root permission policy
+(`root:www-data` 0750/0640, the cron user owns only what it writes). Plain
+`TOKEN  message` output is a contract the installer tests assert on — the
+fancy terminal UI (`deploy/ui.sh`) must never leak into non-TTY output
+unless explicitly forced with `LIDALDI_FANCY=1`.
+Full procedure: `docs/operations.md`.
 
 ## Things that bit us before (don't repeat)
+
+- **Web root ownership outage (2026-09-26).** `update.sh` used to end the
+  web-root sync with a blanket `chown -R lidaldi:lidaldi`, which stripped
+  the `www-data` group nginx reads through (dirs are 0750, files 0640) —
+  every static URL returned 403 until the operator's hand-run
+  `fix_perms_lidaldi.sh` restored it. It only bit when the web root was
+  actually synced as root, so it hid for weeks. The policy now lives in
+  `update.sh` (web root permissions step) and is tested by checking real
+  access as `www-data` and the cron user via `runuser` — keep testing
+  *access*, not just modes. Never `chown -R` a tree the cron user can
+  write to: it can plant symlinks there.
+- **Stale `frontend/dist` looked "up to date".** `dist/` is git-ignored, so
+  after a `git pull` the installer compared the *old* build with the web
+  root, printed `OK web root up to date`, and a merged frontend change never
+  shipped. The installer now fingerprints the frontend sources and rebuilds
+  itself.
 
 - **PATH on the Windows dev box**: `gh`, and sometimes other CLIs, can be
   correctly installed but invisible to a long-running shell-tool process

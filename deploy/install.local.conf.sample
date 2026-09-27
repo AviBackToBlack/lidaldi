@@ -8,9 +8,30 @@
 APP_ROOT="/opt/lidaldi"
 
 # Web root served by nginx (frontend/dist build output; offers.json and
-# meta.json are written here by process_offers.py and are never touched by
-# the installer).
+# meta.json are written here by process_offers.py — the installer never
+# rewrites their content, it only sets their owner/mode).
+# Must be a directory DEDICATED to this site: everything under it is
+# re-owned root:WEB_GROUP 0750/0640 on every run. The installer refuses "/",
+# standard system/shared dirs (/var/www, /opt, ...) and any directory that
+# contains APP_ROOT, SYNC_DIR, LOG_DIR, BACKUP_DIR, PYENV_ROOT or the checkout.
 WEB_ROOT="/var/www/lidaldi"
+
+# Group nginx runs as. Web root policy (enforced on every run): everything
+# root:WEB_GROUP, dirs 0750, files 0640; SERVICE_USER owns the web root dir,
+# offers.json/meta.json and the IMAGES_DIR tree, and must be a member of
+# WEB_GROUP (added automatically when MANAGE_USER=1).
+#WEB_GROUP="www-data"
+
+# Directory tree the scraper writes product images into: Scrapy stores them
+# under <IMAGES_STORE>/full, which must be IMAGES_DIR or inside it (the
+# installer warns if config.toml's [scraper] images_store says otherwise;
+# a legacy live scraper settings.py may override it — check that too). Must
+# be inside WEB_ROOT (nginx serves it). Also what the daily 90-day image
+# cleanup prunes.
+#IMAGES_DIR="/var/www/lidaldi/img/full"
+
+# npm used to rebuild frontend/dist when the frontend sources changed.
+#NPM_BIN="npm"
 
 # System user the cron job and sync service run as (created if missing).
 SERVICE_USER="lidaldi"
