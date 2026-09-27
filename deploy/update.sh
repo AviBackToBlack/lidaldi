@@ -252,7 +252,7 @@ apply_action() {
             local -a owner=(-m 0644)
             if [ "$IS_ROOT" = "1" ]; then owner=(-o root -g "$WEB_GROUP" -m 0640); fi
             (cd "${f[1]}" && find . -type f \
-                ! -name offers.json ! -name meta.json ! -name "$BUILD_STAMP" -print0 |
+                ! -path ./offers.json ! -path ./meta.json ! -path "./$BUILD_STAMP" -print0 |
                 while IFS= read -r -d '' p; do
                     install -D "${owner[@]}" "$p" "${f[2]}/${p#./}"
                 done)

@@ -178,6 +178,18 @@ def test_webroot_preserves_data_files(sandbox):
     assert (sandbox["WEB_ROOT"] / "app.js").read_text() == "new build\n"
 
 
+def test_only_top_level_data_files_are_excluded_from_the_sync(sandbox):
+    # Only <web root>/offers.json and meta.json are pipeline data. A nested
+    # file with the same name is part of the build: it must be deployed, and
+    # the drift check must agree, or every run re-plans the sync forever.
+    nested = sandbox["repo"] / "frontend" / "dist" / "assets" / "offers.json"
+    nested.parent.mkdir()
+    nested.write_text('{"asset": true}')
+    run_update(sandbox)
+    assert (sandbox["WEB_ROOT"] / "assets" / "offers.json").read_text() == '{"asset": true}'
+    assert "NOOP" in run_update(sandbox).stdout
+
+
 def test_vapid_key_never_touched(sandbox):
     run_update(sandbox)
     pem = sandbox["APP_ROOT"] / "offers_processing" / "vapid_private.pem"
