@@ -9,6 +9,8 @@
 # is done.
 #
 # Selection: --plain  >  LIDALDI_FANCY=1  >  NO_COLOR  >  tty + UTF-8 + TERM
+# Fancy output only ever reaches a non-terminal when explicitly forced with
+# LIDALDI_FANCY=1 (tests, or a locale that hides UTF-8 support).
 
 FANCY=0
 UI_SECTION=0
@@ -159,8 +161,13 @@ ui_run() { # ui_run <label> <command...>
     local label="$1" log="$TMP_DIR/ui-run.log" t0=$SECONDS rc=0 i=0
     local -a frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
     shift
-    ( "$@" ) >"$log" 2>&1 &
+    # Job control on just for the launch: the job gets its own process
+    # group, so an interrupt can stop the whole tree (npm/pip and their
+    # children), not only this subshell.
+    set -m
+    ( "$@" ) </dev/null >"$log" 2>&1 &
     UI_JOB=$!
+    set +m
     while kill -0 "$UI_JOB" 2>/dev/null; do
         printf '\r      %s%s%s %s %s%ds%s\e[K' "$C_CYAN" "${frames[i % 10]}" \
             "$C_RESET" "$label" "$C_DIM" $((SECONDS - t0)) "$C_RESET"
@@ -182,7 +189,8 @@ ui_run() { # ui_run <label> <command...>
 
 ui_interrupt() {
     if [ -n "$UI_JOB" ]; then
-        kill "$UI_JOB" 2>/dev/null || true
+        kill -TERM -- "-$UI_JOB" 2>/dev/null || kill "$UI_JOB" 2>/dev/null || true
+        wait "$UI_JOB" 2>/dev/null || true
         printf '\r\e[K'
     fi
     printf '%s\n' "ERROR interrupted" >&2

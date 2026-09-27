@@ -125,6 +125,14 @@ LIVE_ENV="$APP_ROOT/.env"
 IS_ROOT=0
 if [ "$(id -u)" = "0" ]; then IS_ROOT=1; fi
 
+# Root chowns/chmods under these paths, so they must be plain absolute
+# paths: a textual prefix check alone would let "img/../../etc" escape.
+for p in "$WEB_ROOT" "$IMAGES_DIR"; do
+    case "$p" in /*) ;; *) die "path must be absolute: $p" ;; esac
+    case "/$p/" in
+        */../*|*/./*) die "path must not contain . or .. components: $p" ;;
+    esac
+done
 case "$IMAGES_DIR" in
     "$WEB_ROOT"/?*) ;;
     *) die "IMAGES_DIR ($IMAGES_DIR) must be inside WEB_ROOT ($WEB_ROOT) — nginx serves the images from there" ;;
@@ -220,19 +228,25 @@ apply_action() {
         webroot) # webroot <dist> <webroot>
             # Installed straight as root:$WEB_GROUP 0640 so nginx never sees
             # an unreadable file; webperms (planned right after) fixes the rest.
-            local -a owner=()
-            if [ "$IS_ROOT" = "1" ]; then owner=(-o root -g "$WEB_GROUP"); fi
+            # Non-root runs skip the permissions step, so keep those files
+            # world-readable (0644, as before) or nginx could not read them.
+            local -a owner=(-m 0644)
+            if [ "$IS_ROOT" = "1" ]; then owner=(-o root -g "$WEB_GROUP" -m 0640); fi
             (cd "${f[1]}" && find . -type f \
                 ! -name offers.json ! -name meta.json ! -name "$BUILD_STAMP" -print0 |
                 while IFS= read -r -d '' p; do
-                    install -D "${owner[@]}" -m 0640 "$p" "${f[2]}/${p#./}"
+                    install -D "${owner[@]}" "$p" "${f[2]}/${p#./}"
                 done)
             ;;
         webperms)
             webroot_fix_perms
             ;;
         build_frontend)
-            (cd "$FRONTEND_SRC" && "$NPM_BIN" ci --no-audit --no-fund && "$NPM_BIN" run build)
+            # --ignore-scripts: this runs as root, so no third-party package
+            # lifecycle scripts (the lockfile has none needed on Linux).
+            # `npm run build` still runs the repo's own build script — the
+            # same trust as this installer, which runs from the checkout.
+            (cd "$FRONTEND_SRC" && "$NPM_BIN" ci --ignore-scripts --no-audit --no-fund && "$NPM_BIN" run build)
             # Stamp only after a successful build: a failed one is retried.
             printf '%s\n' "$FRONTEND_FP" > "$FRONTEND_DIST/$BUILD_STAMP"
             ;;

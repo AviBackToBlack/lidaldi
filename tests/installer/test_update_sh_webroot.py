@@ -10,8 +10,10 @@ import grp
 import os
 import pwd
 import shutil
+import signal
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -221,6 +223,16 @@ def test_image_cleanup_targets_the_images_dir(sandbox):
     assert "data/images" not in text
 
 
+def test_images_dir_cannot_escape_web_root_with_dot_dot(sandbox):
+    # A textual prefix check alone would accept this, and root would then
+    # chown/chmod /etc-like paths outside the web root.
+    append_conf(sandbox, IMAGES_DIR=f"{sandbox['WEB_ROOT']}/img/../../../etc")
+    proc = run_update(sandbox, check=False)
+    assert proc.returncode != 0
+    assert "must not contain . or .. components" in proc.stderr
+    assert not sandbox["root"].exists()
+
+
 def test_images_dir_outside_web_root_is_rejected(sandbox, tmp_path):
     append_conf(sandbox, IMAGES_DIR=tmp_path / "elsewhere")
     proc = run_update(sandbox, check=False)
@@ -237,6 +249,8 @@ case "$1" in
   ci) ;;
   run)
     [ "${FAKE_NPM_FAIL:-}" = "1" ] && { echo "boom: build exploded" >&2; exit 1; }
+    if [ -n "${FAKE_NPM_HANG_PIDFILE:-}" ]; then
+      sleep 300 & echo $! > "$FAKE_NPM_HANG_PIDFILE"; wait; fi
     rm -rf dist && mkdir -p dist/assets
     printf '<html>%s</html>\\n' "$(cat src/version.txt)" > dist/index.html
     echo app > dist/assets/app.js
@@ -278,7 +292,8 @@ def test_stale_frontend_is_built_then_deployed(build_sandbox):
     assert (build_sandbox["frontend"] / "dist" / ".build-fingerprint").is_file()
     assert not (web / ".build-fingerprint").exists()
     assert not (web / "offers.json").exists()  # public/ fixture never deployed
-    assert "ci --no-audit --no-fund" in build_sandbox["npm_log"].read_text()
+    # Root never runs third-party package lifecycle scripts.
+    assert "ci --ignore-scripts" in build_sandbox["npm_log"].read_text()
 
     proc = run_update(build_sandbox)
     assert "NOOP" in proc.stdout
@@ -332,3 +347,38 @@ def test_failed_build_keeps_the_live_site_and_retries(build_sandbox):
     proc = run_update(build_sandbox)
     assert "sources changed since the last build" in proc.stdout
     assert (build_sandbox["WEB_ROOT"] / "index.html").read_text() == "<html>v2</html>\n"
+
+
+def _alive(pid):
+    try:
+        stat_line = Path(f"/proc/{pid}/stat").read_text()
+    except FileNotFoundError:
+        return False
+    return stat_line.rsplit(")", 1)[1].split()[0] != "Z"  # zombies are dead
+
+
+def test_interrupting_a_fancy_build_stops_the_whole_build(build_sandbox, tmp_path):
+    # Fancy mode runs the build behind a spinner in the background; SIGTERM
+    # to the installer must also stop npm's own children, or they keep
+    # writing dist/ after the installer has exited.
+    pidfile = tmp_path / "hang.pid"
+    env = dict(os.environ, LIDALDI_FANCY="1", FAKE_NPM_HANG_PIDFILE=str(pidfile))
+    proc = subprocess.Popen(
+        ["bash", str(build_sandbox["repo"] / "deploy" / "update.sh"),
+         "--config", str(build_sandbox["conf"])],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    deadline = time.time() + 60
+    while not pidfile.exists() or not pidfile.read_text().strip():
+        assert time.time() < deadline, "fake build never started"
+        assert proc.poll() is None, proc.communicate()
+        time.sleep(0.1)
+    grandchild = int(pidfile.read_text())
+
+    proc.send_signal(signal.SIGTERM)
+    _, err = proc.communicate(timeout=30)
+    assert proc.returncode == 130
+    assert "interrupted" in err
+    deadline = time.time() + 10
+    while _alive(grandchild) and time.time() < deadline:
+        time.sleep(0.1)
+    assert not _alive(grandchild), "build child outlived the installer"

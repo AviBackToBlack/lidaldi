@@ -251,7 +251,8 @@ push for every subscriber). It rebuilds `frontend/dist` itself when the
 frontend sources changed, and enforces the web root permission policy
 (`root:www-data` 0750/0640, the cron user owns only what it writes). Plain
 `TOKEN  message` output is a contract the installer tests assert on — the
-fancy terminal UI (`deploy/ui.sh`) must never leak into non-TTY output.
+fancy terminal UI (`deploy/ui.sh`) must never leak into non-TTY output
+unless explicitly forced with `LIDALDI_FANCY=1`.
 Full procedure: `docs/operations.md`.
 
 ## Things that bit us before (don't repeat)
