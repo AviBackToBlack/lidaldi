@@ -72,7 +72,8 @@ PYENV_PYTHON_VERSION="${PYENV_PYTHON_VERSION:-3.12.13}"
 PYENV_VIRTUALENV_NAME="${PYENV_VIRTUALENV_NAME:-lidaldi}"
 WEB_GROUP="${WEB_GROUP:-www-data}"
 # No trailing slashes: the web root permission step matches paths exactly.
-WEB_ROOT="${WEB_ROOT%/}"
+# ("/" stays "/" so the breadth guard below can reject it by name.)
+[ "$WEB_ROOT" = "/" ] || WEB_ROOT="${WEB_ROOT%/}"
 IMAGES_DIR="${IMAGES_DIR:-$WEB_ROOT/img/full}"
 IMAGES_DIR="${IMAGES_DIR%/}"
 NPM_BIN="${NPM_BIN:-npm}"
@@ -138,6 +139,19 @@ done
 # permission step check nothing and report OK.
 WEB_ROOT="$(realpath -m -- "$WEB_ROOT")"
 IMAGES_DIR="$(realpath -m -- "$IMAGES_DIR")"
+# WEB_ROOT must be a directory dedicated to this site: everything under it
+# is re-owned root:$WEB_GROUP 0750/0640 on every run. "/" or a shared parent
+# (/var/www on a multi-site host, /opt holding APP_ROOT) would wreck the box.
+WEB_ROOT_BREADTH="must be a directory dedicated to this site — everything under it is re-owned root:$WEB_GROUP 0750/0640 on every run"
+case "$WEB_ROOT" in
+    /|/bin|/boot|/dev|/etc|/home|/lib|/lib32|/lib64|/media|/mnt|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/usr/local|/usr/share|/var|/var/lib|/var/log|/var/www)
+        die "WEB_ROOT ($WEB_ROOT) is a system or shared directory; it $WEB_ROOT_BREADTH" ;;
+esac
+for p in "$APP_ROOT" "$SYNC_DIR" "$LOG_DIR" "$BACKUP_DIR" "$PYENV_ROOT" "$REPO_DIR"; do
+    case "$(realpath -m -- "$p")/" in
+        "$WEB_ROOT"/*) die "WEB_ROOT ($WEB_ROOT) contains $p; it $WEB_ROOT_BREADTH" ;;
+    esac
+done
 case "$IMAGES_DIR" in
     "$WEB_ROOT"/?*) ;;
     *) die "IMAGES_DIR ($IMAGES_DIR) must be inside WEB_ROOT ($WEB_ROOT) — nginx serves the images from there" ;;
@@ -487,6 +501,19 @@ webroot_fix_perms() {
     mapfile -t left < <(webroot_perm_drift 2>/dev/null | LC_ALL=C sort -u)
     [ "${#left[@]}" = "0" ] || die "web root permissions could not be applied to ${#left[@]} path(s), e.g. ${left[0]}"
 }
+
+# Symlinks are never followed or changed, so the drift check can't see
+# them — but nginx follows them and serves their targets. Report them.
+if [ -d "$WEB_ROOT" ]; then
+    WEB_LINKS=()
+    mapfile -t WEB_LINKS < <(find "$WEB_ROOT" -mindepth 1 -type l 2>/dev/null | LC_ALL=C sort)
+    if [ "${#WEB_LINKS[@]}" -gt 0 ]; then
+        say WARN "${#WEB_LINKS[@]} symlink(s) in the web root (never followed or changed here, but nginx serves their targets), e.g.:"
+        for p in "${WEB_LINKS[@]:0:5}"; do
+            say_item "${p#"$WEB_ROOT"/} -> $(readlink -- "$p")"
+        done
+    fi
+fi
 
 if [ "$IS_ROOT" != "1" ]; then
     say SKIP "web root permissions (not running as root)"

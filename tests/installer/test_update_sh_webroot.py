@@ -163,7 +163,10 @@ def test_symlinks_in_writable_dirs_are_never_followed(perms_sandbox, tmp_path):
     assert as_user(CRON_USER, "ln", "-s", secret, web / "offers.json")
     assert as_user(CRON_USER, "ln", "-s", "/etc", img / "evil-dir")
 
-    run_update(perms_sandbox)
+    proc = run_update(perms_sandbox)
+    # Never followed, but reported: nginx would serve their targets.
+    assert "WARN  3 symlink(s) in the web root" in proc.stdout
+    assert f"offers.json -> {secret}" in proc.stdout
     after = secret.stat()
     assert (after.st_uid, after.st_gid, after.st_mode) == \
         (before.st_uid, before.st_gid, before.st_mode)
@@ -230,6 +233,26 @@ def test_images_dir_cannot_escape_web_root_with_dot_dot(sandbox):
     proc = run_update(sandbox, check=False)
     assert proc.returncode != 0
     assert "must not contain . or .. components" in proc.stderr
+    assert not sandbox["root"].exists()
+
+
+def test_web_root_slash_is_rejected(sandbox):
+    # Everything under WEB_ROOT is re-owned on every run: "/" would wreck
+    # the whole filesystem.
+    append_conf(sandbox, WEB_ROOT="/")
+    proc = run_update(sandbox, check=False)
+    assert proc.returncode != 0
+    assert "WEB_ROOT (/) is a system or shared directory" in proc.stderr
+    assert not sandbox["root"].exists()
+
+
+def test_web_root_containing_the_app_is_rejected(sandbox):
+    # e.g. WEB_ROOT=/opt with APP_ROOT=/opt/lidaldi: the permission pass
+    # would re-own the app, the sync data and the VAPID key.
+    append_conf(sandbox, WEB_ROOT=sandbox["root"])
+    proc = run_update(sandbox, check=False)
+    assert proc.returncode != 0
+    assert f"contains {sandbox['APP_ROOT']}" in proc.stderr
     assert not sandbox["root"].exists()
 
 

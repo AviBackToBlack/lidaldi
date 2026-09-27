@@ -10,6 +10,10 @@ APP_ROOT="/opt/lidaldi"
 # Web root served by nginx (frontend/dist build output; offers.json and
 # meta.json are written here by process_offers.py — the installer never
 # rewrites their content, it only sets their owner/mode).
+# Must be a directory DEDICATED to this site: everything under it is
+# re-owned root:WEB_GROUP 0750/0640 on every run. The installer refuses "/",
+# standard system/shared dirs (/var/www, /opt, ...) and any directory that
+# contains APP_ROOT, SYNC_DIR, LOG_DIR, BACKUP_DIR, PYENV_ROOT or the checkout.
 WEB_ROOT="/var/www/lidaldi"
 
 # Group nginx runs as. Web root policy (enforced on every run): everything

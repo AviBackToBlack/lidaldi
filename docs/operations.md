@@ -55,7 +55,12 @@ sudo ./deploy/update.sh               # apply
   content of `offers.json` / `meta.json`** — those are data written by
   `process_offers.py` (D2: app deploy ≠ data write).
 - **Web root permissions** are enforced on every run (drift is shown as
-  `DIFF` and fixed; nothing to fix = no action):
+  `DIFF` and fixed; nothing to fix = no action). `WEB_ROOT` must therefore
+  be a directory **dedicated to this site** — the installer refuses `/`,
+  standard system/shared directories (`/var/www`, `/opt`, …) and any
+  directory containing `APP_ROOT`, `SYNC_DIR`, `LOG_DIR`, `BACKUP_DIR`,
+  `PYENV_ROOT` or the checkout. Symlinks inside it are reported as `WARN`
+  (never followed or changed):
   - everything `root:$WEB_GROUP` (default `www-data`), directories `0750`,
     files `0640` — nginx reads, only root can modify the app files (caveat:
     owning the web root directory lets `SERVICE_USER` rename/replace its
