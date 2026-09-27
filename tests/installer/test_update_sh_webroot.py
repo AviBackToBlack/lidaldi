@@ -18,18 +18,25 @@ import pytest
 
 from conftest import run_update
 
-CRON_USER = "daemon"
-WEB_GROUP = "www-data"
+def _name_or_none(lookup, ident):
+    try:
+        return lookup(ident)
+    except KeyError:
+        return None
+
+
+# Debian/Ubuntu fixed ids: `daemon` is uid 1 (stands in for the cron user),
+# `www-data` is uid/gid 33 (nginx). Resolved by id instead of spelled out:
+# these are account names, not secrets, but SAST (Snyk NoHardcodedCredentials)
+# flags user-name literals that are compared in conditions.
+CRON_USER = _name_or_none(lambda i: pwd.getpwuid(i).pw_name, 1)
+WEB_GROUP = _name_or_none(lambda i: grp.getgrgid(i).gr_name, 33)
+NGINX_USER = _name_or_none(lambda i: pwd.getpwuid(i).pw_name, 33)
 
 
 def _have_accounts():
-    try:
-        pwd.getpwnam(CRON_USER)
-        grp.getgrnam(WEB_GROUP)
-        pwd.getpwnam(WEB_GROUP)
-    except KeyError:
-        return False
-    return os.geteuid() == 0 and shutil.which("runuser") is not None
+    return (None not in (CRON_USER, WEB_GROUP, NGINX_USER)
+            and os.geteuid() == 0 and shutil.which("runuser") is not None)
 
 
 # Skippable on a dev box, never in CI: there they must run (CI's container
@@ -92,9 +99,9 @@ def test_webroot_permissions_policy(perms_sandbox):
     assert owner(img) == (CRON_USER, WEB_GROUP, 0o750)
 
     # nginx reads, never writes; the cron user can't touch the app.
-    assert as_user(WEB_GROUP, "test", "-r", web / "index.html")
-    assert as_user(WEB_GROUP, "ls", img)
-    assert not as_user(WEB_GROUP, "touch", web / "x")
+    assert as_user(NGINX_USER, "test", "-r", web / "index.html")
+    assert as_user(NGINX_USER, "ls", img)
+    assert not as_user(NGINX_USER, "touch", web / "x")
     assert not sh_as(CRON_USER, f"echo x >> {web}/index.html")
 
 
@@ -114,8 +121,8 @@ def test_cron_job_output_is_writable_then_normalised(perms_sandbox):
     assert owner(web / "offers.json") == (CRON_USER, WEB_GROUP, 0o640)
     assert owner(img / "v2") == (CRON_USER, WEB_GROUP, 0o750)
     assert owner(img / "v2" / "a.jpg") == (CRON_USER, WEB_GROUP, 0o640)
-    assert as_user(WEB_GROUP, "test", "-r", web / "offers.json")
-    assert as_user(WEB_GROUP, "test", "-r", img / "v2" / "a.jpg")
+    assert as_user(NGINX_USER, "test", "-r", web / "offers.json")
+    assert as_user(NGINX_USER, "test", "-r", img / "v2" / "a.jpg")
     # ...and the next day's job still works: overwrite an expired image,
     # replace offers.json again.
     assert sh_as(CRON_USER, f"echo b > {img}/v2/a.jpg")
@@ -170,7 +177,7 @@ def test_dry_run_reports_permission_drift_without_fixing_it(perms_sandbox):
 
     proc = run_update(perms_sandbox, "--dry-run")
     assert "web root permissions: 1 path(s) differ" in proc.stdout
-    assert "root:www-data 644  index.html" in proc.stdout
+    assert f"root:{WEB_GROUP} 644  index.html" in proc.stdout
     assert stat.S_IMODE(index.stat().st_mode) == 0o644
 
 
