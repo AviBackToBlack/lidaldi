@@ -69,7 +69,7 @@ jobs:
         # be installed first, or `snyk monitor` reports "Missing required
         # packages" for whichever ecosystem wasn't set up.
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
       - name: Install frontend dependencies
@@ -77,7 +77,7 @@ jobs:
         run: npm ci
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
       - name: Install Python dependencies
@@ -86,7 +86,7 @@ jobs:
       - name: Set up Snyk CLI to check for security issues
         # Snyk can be used to break the build when it detects security issues.
         # In this case we want to upload the SAST issues to GitHub Code Scanning
-        uses: snyk/actions/setup@b075801f26076be9bb50521154cafab73f44da0c # master, 2026-09-29 (untagged; latest tag v1.0.0)
+        uses: snyk/actions/setup@11b673cfb4b0dc0d860a1323caa199d54950dcce # master, 2026-09-29 (untagged; latest tag v1.0.0)
 
         # Runs Snyk Code (SAST) analysis and uploads result into GitHub.
         # Use || true to not fail the pipeline
@@ -132,6 +132,6 @@ jobs:
         # Push the Snyk Code results into GitHub Code Scanning tab.
       - name: Upload result to GitHub Code Scanning
         if: (success() || failure()) && steps.sarif-check.outputs.valid == 'true'
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: snyk-code.sarif
